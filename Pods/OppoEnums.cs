@@ -3,22 +3,6 @@ namespace OPods.Pods;
 /// <summary>Pre-built OPPO protocol packets (1:1 with Kotlin <c>Enums</c>).</summary>
 public static class OppoEnums
 {
-    /// <summary>Switch to Noise Cancellation: AA 0A 00 00 04 04 00 03 00 01 01 02</summary>
-    public static readonly byte[] AncNoiseCancel = OppoPackets.BuildPacket(
-        cmd: Cmd.SET_ANC, payload: new byte[] { 0x01, 0x01, (byte)AncMode.NOISE_CANCELLATION });
-
-    /// <summary>Switch to Transparency: AA 0A 00 00 04 04 00 03 00 01 01 04</summary>
-    public static readonly byte[] AncTransparency = OppoPackets.BuildPacket(
-        cmd: Cmd.SET_ANC, payload: new byte[] { 0x01, 0x01, (byte)AncMode.TRANSPARENCY });
-
-    /// <summary>Switch to Off: AA 0A 00 00 04 04 00 03 00 01 01 01</summary>
-    public static readonly byte[] AncOff = OppoPackets.BuildPacket(
-        cmd: Cmd.SET_ANC, payload: new byte[] { 0x01, 0x01, (byte)AncMode.OFF });
-
-    /// <summary>Switch to Adaptive: AA 0B 00 00 04 04 00 04 00 01 01 00 08</summary>
-    public static readonly byte[] AncAdaptive = OppoPackets.BuildPacket(
-        cmd: Cmd.SET_ANC, payload: new byte[] { 0x01, 0x01, (byte)AncMode.ADAPTIVE_HIGH, (byte)AncMode.ADAPTIVE_LOW });
-
     /// <summary>Query battery: AA 07 00 00 06 01 F0 00 00</summary>
     public static readonly byte[] QueryBattery =
     {

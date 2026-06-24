@@ -13,11 +13,6 @@ namespace OPods.Bluetooth;
 /// </summary>
 public sealed class OppoRfcommClient : IDisposable
 {
-    private const int RfcommChannel = 15;
-
-    private static readonly Guid Uuid1 = Guid.Parse("00001107-D102-11E1-9B23-00025B00A5A5");
-    private static readonly Guid Uuid2 = Guid.Parse("0000079A-D102-11E1-9B23-00025B00A5A5");
-
     private BluetoothClient? _client;
     private NetworkStream? _stream;
     private readonly OppoPacketFramer _framer = new();
@@ -25,16 +20,19 @@ public sealed class OppoRfcommClient : IDisposable
     public bool IsConnected => _client?.Connected ?? false;
 
     /// <summary>
-    /// Connect to the earphone using the given method. UUID mode tries the two
-    /// preferred UUIDs via SDP; CHANNEL mode connects directly to SCN 15.
+    /// Connect to the earphone using the given method. UUID mode iterates the
+    /// profile's <see cref="DeviceProfile.Uuids"/> via SDP; CHANNEL mode connects
+    /// directly to <see cref="DeviceProfile.RfcommChannel"/> (默认 15)。
+    /// 连接参数全部来自 <paramref name="profile"/>；传入的 <paramref name="method"/>
+    /// 优先于 profile.PreferredMethod（用户可手动覆盖）。
     /// </summary>
-    public async Task ConnectAsync(BluetoothAddress address, RfcommConnectionMethod method, CancellationToken ct)
+    public async Task ConnectAsync(BluetoothAddress address, RfcommConnectionMethod method, DeviceProfile profile, CancellationToken ct)
     {
         var failures = new List<Exception>();
 
         if (method == RfcommConnectionMethod.Uuid)
         {
-            foreach (var uuid in new[] { Uuid1, Uuid2 })
+            foreach (var uuid in profile.Uuids)
             {
                 ct.ThrowIfCancellationRequested();
                 var client = new BluetoothClient();
@@ -56,11 +54,12 @@ public sealed class OppoRfcommClient : IDisposable
         else
         {
             ct.ThrowIfCancellationRequested();
-            var endpoint = new BluetoothEndPoint(address, BluetoothService.SerialPort, RfcommChannel);
+            int channel = profile.RfcommChannel ?? 15;
+            var endpoint = new BluetoothEndPoint(address, BluetoothService.SerialPort, channel);
             var client = new BluetoothClient();
             try
             {
-                await ConnectWithClientAsync(client, c => c.Connect(endpoint), $"channel {RfcommChannel}", ct).ConfigureAwait(false);
+                await ConnectWithClientAsync(client, c => c.Connect(endpoint), $"channel {channel}", ct).ConfigureAwait(false);
                 _client = client;
                 _stream = client.GetStream();
                 _framer.Reset();

@@ -30,6 +30,9 @@ public sealed class PodController : IDisposable
     public bool GameMode { get; private set; }
     public string DeviceName { get; private set; } = string.Empty;
 
+    /// <summary>当前连接机型的配置，未连接时为 <see cref="DeviceProfileRegistry.Default"/>。</summary>
+    public DeviceProfile Profile { get; private set; } = DeviceProfileRegistry.Default;
+
     public event EventHandler<ConnectionState>? StateChanged;
     public event EventHandler<BatteryParams>? BatteryChanged;
     public event EventHandler<NoiseControlMode>? AncModeChanged;
@@ -41,6 +44,7 @@ public sealed class PodController : IDisposable
         string deviceName,
         RfcommConnectionMethod method,
         GameModeImplementation implementation,
+        DeviceProfile profile,
         CancellationToken ct = default)
     {
         if (State == ConnectionState.Connecting) return;
@@ -50,13 +54,14 @@ public sealed class PodController : IDisposable
         var token = _cts.Token;
 
         _gameModeImplementation = implementation;
+        Profile = profile;
         DeviceName = deviceName;
         SetState(ConnectionState.Connecting);
 
         try
         {
             await Task.Delay(300, token).ConfigureAwait(false);
-            await _client.ConnectAsync(address, method, token).ConfigureAwait(false);
+            await _client.ConnectAsync(address, method, profile, token).ConfigureAwait(false);
             LogMsg($"RFCOMM connected to {deviceName}");
             _running = true;
             SetState(ConnectionState.Connected);
@@ -151,7 +156,7 @@ public sealed class PodController : IDisposable
             return;
         }
 
-        var ancResult = AncModeParser.Parse(packet);
+        var ancResult = AncModeParser.Parse(packet, Profile);
         if (ancResult != null)
         {
             LogMsg($"ANC mode received: {ancResult}");
@@ -232,14 +237,7 @@ public sealed class PodController : IDisposable
 
     public async Task SetAncModeAsync(NoiseControlMode mode)
     {
-        var packet = mode switch
-        {
-            NoiseControlMode.Off => OppoEnums.AncOff,
-            NoiseControlMode.NoiseCancellation => OppoEnums.AncNoiseCancel,
-            NoiseControlMode.Adaptive => OppoEnums.AncAdaptive,
-            NoiseControlMode.Transparency => OppoEnums.AncTransparency,
-            _ => OppoEnums.AncOff
-        };
+        var packet = Profile.BuildAncPacket(mode);
         AncMode = mode;
         AncModeChanged?.Invoke(this, AncMode);
         await SendAsync(packet, _cts.Token).ConfigureAwait(false);
@@ -247,6 +245,12 @@ public sealed class PodController : IDisposable
 
     public async Task SetGameModeAsync(bool enabled)
     {
+        if (!Profile.SupportsGameMode)
+        {
+            GameMode = false;
+            GameModeChanged?.Invoke(this, GameMode);
+            return;
+        }
         GameMode = enabled;
         GameModeChanged?.Invoke(this, GameMode);
         var packets = OppoEnums.GameModePackets(enabled, _gameModeImplementation);
@@ -278,6 +282,7 @@ public sealed class PodController : IDisposable
         AncMode = NoiseControlMode.Off;
         DeviceName = string.Empty;
         GameMode = false;
+        Profile = DeviceProfileRegistry.Default;
         BatteryChanged?.Invoke(this, Battery);
         AncModeChanged?.Invoke(this, AncMode);
         GameModeChanged?.Invoke(this, GameMode);

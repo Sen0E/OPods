@@ -19,6 +19,7 @@ public static class Preferences
 
     public static string LastDeviceAddress { get; set; } = string.Empty;
     public static string LastDeviceName { get; set; } = string.Empty;
+    public static string LastDeviceModel { get; set; } = string.Empty;
     public static string RfcommConnectionMethod { get; set; } = "uuid";
     public static string GameModeImplementation { get; set; } = "standard";
 
@@ -32,6 +33,7 @@ public static class Preferences
             if (data == null) return;
             LastDeviceAddress = data.LastDeviceAddress ?? string.Empty;
             LastDeviceName = data.LastDeviceName ?? string.Empty;
+            LastDeviceModel = data.LastDeviceModel ?? string.Empty;
             RfcommConnectionMethod = data.RfcommConnectionMethod ?? "uuid";
             GameModeImplementation = data.GameModeImplementation ?? "standard";
         }
@@ -49,6 +51,7 @@ public static class Preferences
             {
                 LastDeviceAddress = LastDeviceAddress,
                 LastDeviceName = LastDeviceName,
+                LastDeviceModel = LastDeviceModel,
                 RfcommConnectionMethod = RfcommConnectionMethod,
                 GameModeImplementation = GameModeImplementation
             };
@@ -64,6 +67,7 @@ public static class Preferences
     {
         public string LastDeviceAddress { get; set; } = string.Empty;
         public string LastDeviceName { get; set; } = string.Empty;
+        public string LastDeviceModel { get; set; } = string.Empty;
         public string RfcommConnectionMethod { get; set; } = "uuid";
         public string GameModeImplementation { get; set; } = "standard";
     }

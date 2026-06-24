@@ -5,11 +5,11 @@ namespace OPods.Pods;
 ///
 /// Cmd: 0x810C (mode query response) or 0x0204 (mode change notification)
 /// Scan payload for consecutive bytes 01 01 [Val1] [Val2]
-/// Val mapping: 0x10 0x00=NC, 0x00 0x01=Transparency, 0x08 0x00=Off, 0x00 0x08=Adaptive
+/// (v1,v2) → 模式的映射表来自传入的 <see cref="DeviceProfile.AncResponseMap"/>，不再硬编码。
 /// </summary>
 public static class AncModeParser
 {
-    public static NoiseControlMode? Parse(byte[] data)
+    public static NoiseControlMode? Parse(byte[] data, DeviceProfile profile)
     {
         if (data.Length < 9) return null;
         if (data[0] != 0xAA) return null;
@@ -28,6 +28,8 @@ public static class AncModeParser
             if (reportType == 0x01 || reportType == 0x02) return null;
         }
 
+        var map = profile.AncResponseMap;
+
         int scanEnd = Math.Min(payloadStart + payLen - 3, data.Length - 3);
         for (int i = payloadStart; i <= scanEnd; i++)
         {
@@ -35,12 +37,7 @@ public static class AncModeParser
             {
                 int val1 = data[i + 2] & 0xFF;
                 int val2 = data[i + 3] & 0xFF;
-
-                if (val1 == 0x10 && val2 == 0x00) return NoiseControlMode.NoiseCancellation;
-                if (val1 == 0x00 && val2 == 0x01) return NoiseControlMode.Transparency;
-                if (val1 == 0x08 && val2 == 0x00) return NoiseControlMode.Off;
-                if (val1 == 0x00 && val2 == 0x08) return NoiseControlMode.Adaptive;
-                return null;
+                return map.TryGetValue((val1, val2), out var mode) ? mode : null;
             }
         }
         return null;

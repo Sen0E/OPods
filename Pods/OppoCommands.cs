@@ -15,16 +15,6 @@ public static class Cmd
     public const int SET_GAME_MODE_RESPONSE = 0x8403;
 }
 
-/// <summary>ANC mode values used inside SET_ANC payloads.</summary>
-public static class AncMode
-{
-    public const int OFF = 0x01;
-    public const int NOISE_CANCELLATION = 0x02;
-    public const int TRANSPARENCY = 0x04;
-    public const int ADAPTIVE_HIGH = 0x00;
-    public const int ADAPTIVE_LOW = 0x08;
-}
-
 /// <summary>Battery component index in response payload.</summary>
 public static class BatteryComponent
 {

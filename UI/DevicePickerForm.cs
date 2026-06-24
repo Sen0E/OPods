@@ -18,6 +18,9 @@ public partial class DevicePickerForm : Form
     public string SelectedName { get; private set; } = string.Empty;
     public RfcommConnectionMethod SelectedMethod { get; private set; } = RfcommConnectionMethod.Uuid;
 
+    /// <summary>根据选中设备蓝牙名解析出的机型配置，未选中时为默认 profile。</summary>
+    public DeviceProfile SelectedProfile { get; private set; } = DeviceProfileRegistry.Default;
+
     public DevicePickerForm()
     {
         InitializeComponent();
@@ -68,6 +71,17 @@ public partial class DevicePickerForm : Form
     private void DeviceList_SelectedIndexChanged(object? sender, EventArgs e)
     {
         connectButton.Enabled = deviceList.SelectedIndices.Count > 0;
+        if (deviceList.SelectedIndices.Count == 0) return;
+        int idx = deviceList.SelectedIndices[0];
+        if (idx < 0 || idx >= _devices.Count) return;
+
+        var dev = _devices[idx];
+        var p = DeviceProfileRegistry.Resolve(dev.DeviceName ?? "");
+        statusLabel.Text = $"已选择：{dev.DeviceName ?? "(未知设备)"}（{p.ModelName}）";
+
+        // 选中设备时把连接方式下拉框默认值设为 profile 推荐（用户仍可覆盖）。
+        connectionMethodCombo.SelectedIndex =
+            RfcommConnectionMethodExtensions.SelectedIndexOf(p.PreferredMethod);
     }
 
     private void ConnectButton_Click(object? sender, EventArgs e)
@@ -79,10 +93,12 @@ public partial class DevicePickerForm : Form
         var dev = _devices[idx];
         SelectedAddress = dev.DeviceAddress;
         SelectedName = dev.DeviceName ?? dev.DeviceAddress.ToString();
+        SelectedProfile = DeviceProfileRegistry.Resolve(SelectedName);
         SelectedMethod = RfcommConnectionMethodExtensions.FromSelectedIndex(connectionMethodCombo.SelectedIndex);
 
         Preferences.LastDeviceAddress = dev.DeviceAddress.ToString();
         Preferences.LastDeviceName = SelectedName;
+        Preferences.LastDeviceModel = SelectedProfile.ModelName;
         Preferences.RfcommConnectionMethod = SelectedMethod.PreferenceValue();
         Preferences.Save();
 

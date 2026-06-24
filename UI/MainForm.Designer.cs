@@ -17,10 +17,7 @@ partial class MainForm
     private Label caseBatteryLabel;
 
     private GroupBox ancGroup;
-    private RadioButton ancOffRadio;
-    private RadioButton ancNoiseCancelRadio;
-    private RadioButton ancAdaptiveRadio;
-    private RadioButton ancTransparencyRadio;
+    private FlowLayoutPanel ancButtonPanel;
 
     private GroupBox gameModeGroup;
     private CheckBox gameModeCheckBox;
@@ -56,10 +53,7 @@ partial class MainForm
         caseBatteryLabel = new Label();
 
         ancGroup = new GroupBox();
-        ancOffRadio = new RadioButton();
-        ancNoiseCancelRadio = new RadioButton();
-        ancAdaptiveRadio = new RadioButton();
-        ancTransparencyRadio = new RadioButton();
+        ancButtonPanel = new FlowLayoutPanel();
 
         gameModeGroup = new GroupBox();
         gameModeCheckBox = new CheckBox();
@@ -136,41 +130,20 @@ partial class MainForm
 
         // ancGroup
         ancGroup.Location = new Point(16, 232);
-        ancGroup.Size = new Size(560, 80);
+        ancGroup.Size = new Size(560, 130);
         ancGroup.Text = "降噪模式";
 
-        // ancOffRadio
-        ancOffRadio.Location = new Point(20, 32);
-        ancOffRadio.Size = new Size(120, 28);
-        ancOffRadio.Text = "关闭";
-        ancOffRadio.Checked = true;
-        ancOffRadio.CheckedChanged += AncRadio_CheckedChanged;
+        // ancButtonPanel —— 动态 ANC 按钮容器（代码按 profile 生成）
+        ancButtonPanel.Dock = DockStyle.Fill;
+        ancButtonPanel.FlowDirection = FlowDirection.TopDown;
+        ancButtonPanel.WrapContents = false;
+        ancButtonPanel.AutoScroll = true;
+        ancButtonPanel.Padding = new Padding(8, 26, 8, 4);
 
-        // ancNoiseCancelRadio
-        ancNoiseCancelRadio.Location = new Point(150, 32);
-        ancNoiseCancelRadio.Size = new Size(120, 28);
-        ancNoiseCancelRadio.Text = "降噪";
-        ancNoiseCancelRadio.CheckedChanged += AncRadio_CheckedChanged;
-
-        // ancAdaptiveRadio
-        ancAdaptiveRadio.Location = new Point(280, 32);
-        ancAdaptiveRadio.Size = new Size(120, 28);
-        ancAdaptiveRadio.Text = "自适应";
-        ancAdaptiveRadio.CheckedChanged += AncRadio_CheckedChanged;
-
-        // ancTransparencyRadio
-        ancTransparencyRadio.Location = new Point(410, 32);
-        ancTransparencyRadio.Size = new Size(120, 28);
-        ancTransparencyRadio.Text = "通透";
-        ancTransparencyRadio.CheckedChanged += AncRadio_CheckedChanged;
-
-        ancGroup.Controls.Add(ancOffRadio);
-        ancGroup.Controls.Add(ancNoiseCancelRadio);
-        ancGroup.Controls.Add(ancAdaptiveRadio);
-        ancGroup.Controls.Add(ancTransparencyRadio);
+        ancGroup.Controls.Add(ancButtonPanel);
 
         // gameModeGroup
-        gameModeGroup.Location = new Point(16, 322);
+        gameModeGroup.Location = new Point(16, 372);
         gameModeGroup.Size = new Size(560, 80);
         gameModeGroup.Text = "游戏模式";
 
@@ -197,7 +170,7 @@ partial class MainForm
         gameModeGroup.Controls.Add(gameModeImplCombo);
 
         // logGroup
-        logGroup.Location = new Point(16, 412);
+        logGroup.Location = new Point(16, 462);
         logGroup.Size = new Size(560, 130);
         logGroup.Text = "日志";
 
@@ -213,7 +186,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 552);
+        ClientSize = new Size(592, 602);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
         Controls.Add(statusDotLabel);
