@@ -9,6 +9,7 @@ public static class DeviceProfileRegistry
     private static readonly DeviceProfile[] _profiles =
     {
         new EncoFree4Profile(),
+        new EncoFree3Profile(),
     };
 
     private static readonly DeviceProfile _default = new GenericOppoProfile();
