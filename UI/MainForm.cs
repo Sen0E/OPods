@@ -1,5 +1,6 @@
 using InTheHand.Net;
 using InTheHand.Net.Bluetooth;
+using InTheHand.Net.Sockets;
 using OPods.Controllers;
 using OPods.Pods;
 
@@ -40,7 +41,62 @@ public partial class MainForm : Form
         UpdateBatteryUi(_controller.Battery);
         UpdateAncUi(_controller.AncMode);
         UpdateGameModeUi(_controller.GameMode);
-        AppendLog("OPods 已启动。点击「更换设备」连接耳机。");
+        AppendLog("OPods 已启动。正在自动检测已连接的 OPPO 耳机…");
+
+        // 启动时自动检测已连接的 OPPO 耳机并连接；未检测到时提示用户手动选择。
+        _ = AutoDetectAndConnectAsync();
+    }
+
+    /// <summary>
+    /// 启动时自动检测已连接的 OPPO 耳机。扫描附近蓝牙设备，筛选设备名以
+    /// "OPPO Enco" 开头的，优先选择已连接（Connected）的设备，其次选已配对
+    /// （Authenticated）的。匹配到后按设备名解析 DeviceProfile —— 未命中任何
+    /// 已注册机型时 <see cref="DeviceProfileRegistry.Resolve"/> 会自动返回
+    /// <see cref="GenericOppoProfile"/> 兜底配置。
+    /// </summary>
+    private async Task AutoDetectAndConnectAsync()
+    {
+        BluetoothDeviceInfo? target = null;
+        try
+        {
+            AppendLog("正在扫描附近蓝牙设备…");
+            BluetoothDeviceInfo[] devices;
+            using (var client = new BluetoothClient())
+            {
+                devices = await Task.Run(() => client.DiscoverDevices().ToArray()).ConfigureAwait(true);
+            }
+
+            var candidates = devices
+                .Where(d => !string.IsNullOrEmpty(d.DeviceName) &&
+                            d.DeviceName.StartsWith("OPPO Enco", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                AppendLog("未检测到 OPPO Enco 系列耳机。请确认耳机已开机并连接，或点击「更换设备」手动选择。");
+                return;
+            }
+
+            // 优先选已连接音频的，其次选已配对的，最后取第一个候选
+            target = candidates.FirstOrDefault(d => d.Connected)
+                  ?? candidates.FirstOrDefault(d => d.Authenticated)
+                  ?? candidates[0];
+
+            AppendLog($"检测到 OPPO 耳机：{target.DeviceName}，正在解析机型配置…");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"自动检测失败：{ex.Message}。请点击「更换设备」手动选择。");
+            return;
+        }
+
+        // 按蓝牙名解析机型 profile；未匹配到已注册机型时自动降级为 GenericOppoProfile
+        var profile = DeviceProfileRegistry.Resolve(target.DeviceName);
+        AppendLog(profile is GenericOppoProfile
+            ? $"未找到 {target.DeviceName} 的专属配置，降级使用通用兜底配置。"
+            : $"已识别机型：{profile.ModelName}。");
+
+        await ConnectToAsync(target.DeviceAddress, target.DeviceName, profile.PreferredMethod, profile);
     }
 
     private async void ChangeDeviceButton_Click(object? sender, EventArgs e)
@@ -53,18 +109,18 @@ public partial class MainForm : Form
         using var picker = new DevicePickerForm();
         if (picker.ShowDialog(this) != DialogResult.OK || picker.SelectedAddress == null) return;
 
-        var profile = picker.SelectedProfile;
+        await ConnectToAsync(picker.SelectedAddress, picker.SelectedName, picker.SelectedMethod, picker.SelectedProfile);
+    }
+
+    /// <summary>共用连接流程：设置游戏模式实现方式并调用 <see cref="PodController.ConnectAsync"/>。</summary>
+    private async Task ConnectToAsync(BluetoothAddress address, string name, RfcommConnectionMethod method, DeviceProfile profile)
+    {
         var impl = GameModeImplementationExtensions.FromSelectedIndex(gameModeImplCombo.SelectedIndex);
         _controller.SetGameModeImplementation(impl);
 
         try
         {
-            await _controller.ConnectAsync(
-                picker.SelectedAddress,
-                picker.SelectedName,
-                picker.SelectedMethod,
-                impl,
-                profile);
+            await _controller.ConnectAsync(address, name, method, impl, profile);
         }
         catch (OperationCanceledException)
         {
