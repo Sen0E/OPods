@@ -16,23 +16,8 @@ partial class MainForm
     private Label rightBatteryLabel;
     private Label caseBatteryLabel;
 
-    private GroupBox deviceInfoGroup;
-    private Label codecLabel;
-    private Label codecValueLabel;
-    private Label wearLeftLabel;
-    private Label wearRightLabel;
-    private CheckBox multiDeviceCheckBox;
-
     private GroupBox ancGroup;
     private FlowLayoutPanel ancButtonPanel;
-
-    private GroupBox gameModeGroup;
-    private CheckBox gameModeCheckBox;
-    private Label gameModeImplLabel;
-    private ComboBox gameModeImplCombo;
-
-    private GroupBox spatialAudioGroup;
-    private CheckBox spatialAudioCheckBox;
 
     private GroupBox eqGroup;
     private Label eqPresetLabel;
@@ -68,23 +53,8 @@ partial class MainForm
         rightBatteryLabel = new Label();
         caseBatteryLabel = new Label();
 
-        deviceInfoGroup = new GroupBox();
-        codecLabel = new Label();
-        codecValueLabel = new Label();
-        wearLeftLabel = new Label();
-        wearRightLabel = new Label();
-        multiDeviceCheckBox = new CheckBox();
-
         ancGroup = new GroupBox();
         ancButtonPanel = new FlowLayoutPanel();
-
-        gameModeGroup = new GroupBox();
-        gameModeCheckBox = new CheckBox();
-        gameModeImplLabel = new Label();
-        gameModeImplCombo = new ComboBox();
-
-        spatialAudioGroup = new GroupBox();
-        spatialAudioCheckBox = new CheckBox();
 
         eqGroup = new GroupBox();
         eqPresetLabel = new Label();
@@ -163,49 +133,8 @@ partial class MainForm
         batteryGroup.Controls.Add(rightBatteryLabel);
         batteryGroup.Controls.Add(caseBatteryLabel);
 
-        // deviceInfoGroup —— 编解码器 + 佩戴状态 + 双设备连接
-        deviceInfoGroup.Location = new Point(16, 232);
-        deviceInfoGroup.Size = new Size(560, 122);
-        deviceInfoGroup.Text = "设备信息";
-
-        // codecLabel
-        codecLabel.AutoSize = true;
-        codecLabel.Location = new Point(20, 30);
-        codecLabel.Text = "编解码器：";
-
-        // codecValueLabel
-        codecValueLabel.AutoSize = true;
-        codecValueLabel.Location = new Point(90, 30);
-        codecValueLabel.Font = new Font(Font, FontStyle.Bold);
-        codecValueLabel.Text = "--";
-
-        // wearLeftLabel
-        wearLeftLabel.Location = new Point(20, 56);
-        wearLeftLabel.Size = new Size(260, 24);
-        wearLeftLabel.TextAlign = ContentAlignment.MiddleLeft;
-        wearLeftLabel.Text = "左耳：--";
-
-        // wearRightLabel
-        wearRightLabel.Location = new Point(290, 56);
-        wearRightLabel.Size = new Size(260, 24);
-        wearRightLabel.TextAlign = ContentAlignment.MiddleLeft;
-        wearRightLabel.Text = "右耳：--";
-
-        // multiDeviceCheckBox —— 仅当 Capabilities.SupportsMultiDevice 时显示
-        multiDeviceCheckBox.Location = new Point(20, 88);
-        multiDeviceCheckBox.Size = new Size(260, 24);
-        multiDeviceCheckBox.Text = "双设备连接";
-        multiDeviceCheckBox.Visible = false;
-        multiDeviceCheckBox.CheckedChanged += MultiDeviceCheckBox_CheckedChanged;
-
-        deviceInfoGroup.Controls.Add(codecLabel);
-        deviceInfoGroup.Controls.Add(codecValueLabel);
-        deviceInfoGroup.Controls.Add(wearLeftLabel);
-        deviceInfoGroup.Controls.Add(wearRightLabel);
-        deviceInfoGroup.Controls.Add(multiDeviceCheckBox);
-
         // ancGroup
-        ancGroup.Location = new Point(16, 364);
+        ancGroup.Location = new Point(16, 232);
         ancGroup.Size = new Size(560, 130);
         ancGroup.Text = "降噪模式";
 
@@ -218,49 +147,8 @@ partial class MainForm
 
         ancGroup.Controls.Add(ancButtonPanel);
 
-        // gameModeGroup
-        gameModeGroup.Location = new Point(16, 504);
-        gameModeGroup.Size = new Size(560, 80);
-        gameModeGroup.Text = "游戏模式";
-
-        // gameModeCheckBox
-        gameModeCheckBox.Location = new Point(20, 34);
-        gameModeCheckBox.Size = new Size(120, 28);
-        gameModeCheckBox.Text = "开启";
-        gameModeCheckBox.CheckedChanged += GameModeCheckBox_CheckedChanged;
-
-        // gameModeImplLabel
-        gameModeImplLabel.AutoSize = true;
-        gameModeImplLabel.Location = new Point(160, 38);
-        gameModeImplLabel.Text = "实现方式：";
-
-        // gameModeImplCombo
-        gameModeImplCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        gameModeImplCombo.Location = new Point(245, 34);
-        gameModeImplCombo.Size = new Size(160, 28);
-        gameModeImplCombo.Items.AddRange(new object[] { "STANDARD", "COMPATIBLE" });
-        gameModeImplCombo.SelectedIndexChanged += GameModeImplCombo_SelectedIndexChanged;
-
-        gameModeGroup.Controls.Add(gameModeCheckBox);
-        gameModeGroup.Controls.Add(gameModeImplLabel);
-        gameModeGroup.Controls.Add(gameModeImplCombo);
-
-        // spatialAudioGroup —— 仅当 Capabilities.SupportsSpatialAudio 时显示
-        spatialAudioGroup.Location = new Point(16, 594);
-        spatialAudioGroup.Size = new Size(560, 64);
-        spatialAudioGroup.Text = "空间音频";
-        spatialAudioGroup.Visible = false;
-
-        // spatialAudioCheckBox —— Free3 仅有"关闭/固定"两档，checkbox 即固定模式开关
-        spatialAudioCheckBox.Location = new Point(20, 28);
-        spatialAudioCheckBox.Size = new Size(160, 28);
-        spatialAudioCheckBox.Text = "固定空间音频";
-        spatialAudioCheckBox.CheckedChanged += SpatialAudioCheckBox_CheckedChanged;
-
-        spatialAudioGroup.Controls.Add(spatialAudioCheckBox);
-
         // eqGroup
-        eqGroup.Location = new Point(16, 668);
+        eqGroup.Location = new Point(16, 364);
         eqGroup.Size = new Size(560, 80);
         eqGroup.Text = "大师调音 (EQ)";
 
@@ -294,13 +182,13 @@ partial class MainForm
         eqGroup.Controls.Add(eqRawIdInput);
 
         // logGroup
-        logGroup.Location = new Point(16, 758);
-        logGroup.Size = new Size(560, 130);
+        logGroup.Location = new Point(16, 456);
+        logGroup.Size = new Size(560, 150);
         logGroup.Text = "日志";
 
         // logTextBox
         logTextBox.Location = new Point(12, 22);
-        logTextBox.Size = new Size(536, 100);
+        logTextBox.Size = new Size(536, 120);
         logTextBox.Multiline = true;
         logTextBox.ScrollBars = ScrollBars.Vertical;
         logTextBox.ReadOnly = true;
@@ -310,7 +198,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 898);
+        ClientSize = new Size(592, 618);
         Font = new Font("Segoe UI", 9F);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
@@ -319,10 +207,7 @@ partial class MainForm
         Controls.Add(changeDeviceButton);
         Controls.Add(refreshButton);
         Controls.Add(batteryGroup);
-        Controls.Add(deviceInfoGroup);
         Controls.Add(ancGroup);
-        Controls.Add(gameModeGroup);
-        Controls.Add(spatialAudioGroup);
         Controls.Add(eqGroup);
         Controls.Add(logGroup);
         FormBorderStyle = FormBorderStyle.FixedSingle;
