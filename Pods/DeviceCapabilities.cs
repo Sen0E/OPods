@@ -35,8 +35,11 @@ public sealed class DeviceCapabilities
     /// <summary>设备某 feature id 当前是否开启；不支持或未知返回 false。</summary>
     public bool IsFeatureEnabled(int featureId) => FeatureSwitches?.Get(featureId) ?? false;
 
-    /// <summary>支持游戏模式主开关（feature 0x28）。</summary>
-    public bool SupportsGameMode => IsFeatureSupported(FeatureId.GAME_SOUND_MAIN);
+    /// <summary>
+    /// 支持游戏模式：主开关 feature 0x28，或低延迟 feature 0x06（部分机型如 Free3 仅上报 0x06）。
+    /// </summary>
+    public bool SupportsGameMode =>
+        IsFeatureSupported(FeatureId.GAME_SOUND_MAIN) || IsFeatureSupported(FeatureId.GAME_MODE);
 
     /// <summary>支持低延迟游戏模式（feature 0x06）。</summary>
     public bool SupportsLowLatency => IsFeatureSupported(FeatureId.GAME_MODE);

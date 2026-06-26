@@ -8,9 +8,11 @@ public sealed record GameModeStatus(bool? MainEnabled, bool? LowLatencyEnabled)
 {
     public bool? EnabledFor(GameModeImplementation implementation) => implementation switch
     {
-        GameModeImplementation.Standard => MainEnabled,
+        // Standard 优先用主开关 0x28；机型仅上报低延迟 0x06 时回退
+        GameModeImplementation.Standard => MainEnabled ?? LowLatencyEnabled,
+        // Compatible 优先用低延迟 0x06；不存在时回退到主开关
         GameModeImplementation.Compatible => LowLatencyEnabled ?? MainEnabled,
-        _ => MainEnabled
+        _ => MainEnabled ?? LowLatencyEnabled
     };
 }
 
