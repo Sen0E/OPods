@@ -41,17 +41,18 @@ public partial class MainForm : Form
         UpdateBatteryUi(_controller.Battery);
         UpdateAncUi(_controller.AncMode);
         UpdateGameModeUi(_controller.GameMode);
-        AppendLog("OPods 已启动。正在自动检测已连接的 OPPO 耳机…");
+        AppendLog("OPods 已启动。正在从系统配对表自动检测 OPPO 耳机…");
 
         // 启动时自动检测已连接的 OPPO 耳机并连接；未检测到时提示用户手动选择。
         _ = AutoDetectAndConnectAsync();
     }
 
     /// <summary>
-    /// 启动时自动检测已连接的 OPPO 耳机。扫描附近蓝牙设备，筛选设备名以
-    /// "OPPO Enco" 开头的，优先选择已连接（Connected）的设备，其次选已配对
-    /// （Authenticated）的。匹配到后按设备名解析 DeviceProfile —— 未命中任何
-    /// 已注册机型时 <see cref="DeviceProfileRegistry.Resolve"/> 会自动返回
+    /// 启动时自动检测已连接的 OPPO 耳机。直接读取系统已配对设备列表
+    /// （<see cref="BluetoothClient.PairedDevices"/>，不触发无线电扫描，毫秒级返回），
+    /// 筛选设备名以 "OPPO Enco" 开头的，优先选择已连接（Connected）的设备。
+    /// 匹配到后按设备名解析 DeviceProfile —— 未命中任何已注册机型时
+    /// <see cref="DeviceProfileRegistry.Resolve"/> 会自动返回
     /// <see cref="GenericOppoProfile"/> 兜底配置。
     /// </summary>
     private async Task AutoDetectAndConnectAsync()
@@ -59,11 +60,13 @@ public partial class MainForm : Form
         BluetoothDeviceInfo? target = null;
         try
         {
-            AppendLog("正在扫描附近蓝牙设备…");
+            AppendLog("正在读取系统已配对的蓝牙设备…");
             BluetoothDeviceInfo[] devices;
             using (var client = new BluetoothClient())
             {
-                devices = await Task.Run(() => client.DiscoverDevices().ToArray()).ConfigureAwait(true);
+                // 使用 PairedDevices 而非 DiscoverDevices()，跳过 ~10 秒的无线电扫描，
+                // 直接从 Windows 系统配对表读取（fIssueInquiry=false, fReturnAuthenticated=true）。
+                devices = await Task.Run(() => client.PairedDevices.ToArray()).ConfigureAwait(true);
             }
 
             var candidates = devices
@@ -73,7 +76,7 @@ public partial class MainForm : Form
 
             if (candidates.Count == 0)
             {
-                AppendLog("未检测到 OPPO Enco 系列耳机。请确认耳机已开机并连接，或点击「更换设备」手动选择。");
+                AppendLog("已配对设备中未发现 OPPO Enco 系列耳机。请先在 Windows 蓝牙设置中配对耳机，或点击「更换设备」手动选择。");
                 return;
             }
 
