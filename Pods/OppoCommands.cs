@@ -21,6 +21,11 @@ public static class Cmd
 
     public const int QUERY_EQ = 0x010F;
     public const int EQ_RESPONSE = 0x810F;
+    /// <summary>
+    /// EQ 预设变化主动通知（seq=0xFF）。在手机端切换调音时由设备推送，
+    /// payload=[presetId]。依据：Free3 切换调音时实测捕获。
+    /// </summary>
+    public const int EQ_PRESET_NOTIFY = 0x0504;
 
     // 协议优先重构新增：查询/响应命令（0x0100 段）
     public const int QUERY_CAPABILITY = 0x0100;
