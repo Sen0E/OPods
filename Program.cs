@@ -10,6 +10,5 @@ static class Program
         Application.SetColorMode(SystemColorMode.System);
         Preferences.Load();
         Application.Run(new UI.MainForm());
-        
     }
 }
