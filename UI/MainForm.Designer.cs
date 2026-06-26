@@ -200,6 +200,10 @@ partial class MainForm
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(592, 650);
         Font = new Font("Segoe UI", 9F);
+        // 窗口图标：直接从 exe 的 Win32 资源中提取（由 <ApplicationIcon> 嵌入），
+        // 避免依赖运行时工作目录与 res/logo.ico 的相对路径。
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
+        catch { /* 设计期或图标缺失时静默回退到默认图标 */ }
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
         Controls.Add(statusDotLabel);

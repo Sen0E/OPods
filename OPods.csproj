@@ -11,6 +11,7 @@
     <RootNamespace>OPods</RootNamespace>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>latest</LangVersion>
+    <ApplicationIcon>res\logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
