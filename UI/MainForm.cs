@@ -18,8 +18,8 @@ public partial class MainForm : Form
     private bool _suppressAncEvents;
     private bool _suppressEqEvents;
 
-    private readonly List<RadioButton> _ancMainButtons = new();
-    private readonly List<RadioButton> _ancLevelButtons = new();
+    private readonly List<AncOptionBox> _ancMainButtons = new();
+    private readonly List<AncOptionBox> _ancLevelButtons = new();
     private FlowLayoutPanel? _ancSubPanel;
     private DeviceProfile _currentProfile = DeviceProfileRegistry.Default;
 
@@ -39,6 +39,10 @@ public partial class MainForm : Form
 
     private void MainForm_Load(object? sender, EventArgs e)
     {
+        // 窗口定位于屏幕右下角，留 16px 边距
+        var workArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromControl(this).WorkingArea;
+        Location = new Point(workArea.Right - Width - 16, workArea.Bottom - Height - 16);
+
         BuildAncButtons(DeviceProfileRegistry.Default);
         BuildEqUi(DeviceProfileRegistry.Default);
         UpdateConnectionUi();
@@ -147,6 +151,7 @@ public partial class MainForm : Form
         var mains = profile.AncModes.Where(m => !IsLevelMode(m.Mode)).ToList();
         bool useSubPanel = levels.Count >= 2;
 
+        // 主选项行：圆角矩形卡片，等宽分布
         var mainRow = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -156,20 +161,23 @@ public partial class MainForm : Form
             Margin = new Padding(0)
         };
 
+        int mainCount = mains.Count + (useSubPanel ? 1 : levels.Count);
+        int mainBoxWidth = ComputeBoxWidth(ancButtonPanel.Width - 20, mainCount, 12);
+
         foreach (var def in mains)
         {
-            mainRow.Controls.Add(MakeAncRadio(def.DisplayName, def.Mode, isLevel: false));
+            mainRow.Controls.Add(MakeAncOption(def.DisplayName, def.Mode, isLevel: false, mainBoxWidth, 48));
         }
 
         if (useSubPanel)
         {
-            mainRow.Controls.Add(MakeAncRadio("降噪", levels[0].Mode, isLevel: false));
+            mainRow.Controls.Add(MakeAncOption("降噪", levels[0].Mode, isLevel: false, mainBoxWidth, 48));
         }
         else
         {
             foreach (var def in levels)
             {
-                mainRow.Controls.Add(MakeAncRadio(def.DisplayName, def.Mode, isLevel: false));
+                mainRow.Controls.Add(MakeAncOption(def.DisplayName, def.Mode, isLevel: false, mainBoxWidth, 48));
             }
         }
 
@@ -177,18 +185,20 @@ public partial class MainForm : Form
 
         if (useSubPanel)
         {
+            // 子选项行：降噪模式下展开的 4 个等级卡片，缩进对齐主选项区
             _ancSubPanel = new FlowLayoutPanel
             {
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Margin = new Padding(24, 6, 0, 0),
+                Margin = new Padding(0, 10, 0, 0),
                 Visible = false
             };
+            int subBoxWidth = ComputeBoxWidth(ancButtonPanel.Width - 20, levels.Count, 10);
             foreach (var def in levels)
             {
-                _ancSubPanel.Controls.Add(MakeAncRadio(def.DisplayName, def.Mode, isLevel: true));
+                _ancSubPanel.Controls.Add(MakeAncOption(def.DisplayName, def.Mode, isLevel: true, subBoxWidth, 44));
             }
             ancButtonPanel.Controls.Add(_ancSubPanel);
         }
@@ -198,19 +208,25 @@ public partial class MainForm : Form
         UpdateAncUi(_controller.AncMode);
     }
 
-    private RadioButton MakeAncRadio(string text, NoiseControlMode mode, bool isLevel)
+    private static int ComputeBoxWidth(int availableWidth, int count, int gap)
     {
-        var rb = new RadioButton
+        if (count <= 0) return 120;
+        int total = availableWidth - gap * (count - 1);
+        return Math.Max(96, total / count);
+    }
+
+    private AncOptionBox MakeAncOption(string text, NoiseControlMode mode, bool isLevel, int width, int height)
+    {
+        var box = new AncOptionBox(text)
         {
-            Text = text,
             Tag = mode,
-            AutoSize = true,
-            Margin = new Padding(4, 2, 12, 2)
+            Size = new Size(width, height),
+            Margin = new Padding(0, 0, isLevel ? 10 : 12, 0)
         };
-        rb.CheckedChanged += AncButton_CheckedChanged;
-        if (isLevel) _ancLevelButtons.Add(rb);
-        else _ancMainButtons.Add(rb);
-        return rb;
+        box.OptionSelected += AncOption_Selected;
+        if (isLevel) _ancLevelButtons.Add(box);
+        else _ancMainButtons.Add(box);
+        return box;
     }
 
     private static bool IsLevelMode(NoiseControlMode mode) =>
@@ -219,41 +235,53 @@ public partial class MainForm : Form
         mode == NoiseControlMode.NoiseCancellationMedium ||
         mode == NoiseControlMode.NoiseCancellationDeep;
 
-    private async void AncButton_CheckedChanged(object? sender, EventArgs e)
+    private async void AncOption_Selected(object? sender, EventArgs e)
     {
         if (_suppressAncEvents) return;
-        if (sender is not RadioButton rb || !rb.Checked) return;
+        if (sender is not AncOptionBox box) return;
         if (_controller.State != ConnectionState.Connected) return;
 
-        var mode = (NoiseControlMode)rb.Tag!;
+        var mode = (NoiseControlMode)box.Tag!;
 
-        if (_ancLevelButtons.Contains(rb))
+        if (_ancLevelButtons.Contains(box))
         {
+            // 点击子选项：保持主选项「降噪」高亮，仅切换子选项高亮
             _suppressAncEvents = true;
             try
             {
+                foreach (var lb in _ancLevelButtons) lb.Selected = lb == box;
                 foreach (var mb in _ancMainButtons)
                 {
-                    if (IsLevelMode((NoiseControlMode)mb.Tag!)) mb.Checked = true;
-                    else mb.Checked = false;
+                    if (IsLevelMode((NoiseControlMode)mb.Tag!)) mb.Selected = true;
+                    else mb.Selected = false;
                 }
             }
             finally { _suppressAncEvents = false; }
         }
         else if (IsLevelMode(mode) && _ancSubPanel != null)
         {
+            // 点击主选项「降噪」：展开子选项行并默认选中第一档
             _ancSubPanel.Visible = true;
             _suppressAncEvents = true;
             try
             {
-                if (_ancLevelButtons.Count > 0) _ancLevelButtons[0].Checked = true;
+                foreach (var mb in _ancMainButtons) mb.Selected = IsLevelMode((NoiseControlMode)mb.Tag!);
+                if (_ancLevelButtons.Count > 0) _ancLevelButtons[0].Selected = true;
             }
             finally { _suppressAncEvents = false; }
             mode = (NoiseControlMode)_ancLevelButtons[0].Tag!;
         }
         else
         {
+            // 点击其它主选项：折叠子选项行，仅当前主选项高亮
             if (_ancSubPanel != null) _ancSubPanel.Visible = false;
+            _suppressAncEvents = true;
+            try
+            {
+                foreach (var mb in _ancMainButtons) mb.Selected = mb == box;
+                foreach (var lb in _ancLevelButtons) lb.Selected = false;
+            }
+            finally { _suppressAncEvents = false; }
         }
 
         await _controller.SetAncModeAsync(mode);
@@ -448,15 +476,14 @@ public partial class MainForm : Form
             {
                 foreach (var mb in _ancMainButtons)
                 {
-                    if (IsLevelMode((NoiseControlMode)mb.Tag!)) mb.Checked = true;
-                    else mb.Checked = false;
+                    mb.Selected = IsLevelMode((NoiseControlMode)mb.Tag!);
                 }
                 if (_ancSubPanel != null)
                 {
                     _ancSubPanel.Visible = true;
                     foreach (var lb in _ancLevelButtons)
                     {
-                        lb.Checked = ((NoiseControlMode)lb.Tag!) == mode;
+                        lb.Selected = ((NoiseControlMode)lb.Tag!) == mode;
                     }
                 }
             }
@@ -464,11 +491,11 @@ public partial class MainForm : Form
             {
                 foreach (var mb in _ancMainButtons)
                 {
-                    mb.Checked = ((NoiseControlMode)mb.Tag!) == mode;
+                    mb.Selected = ((NoiseControlMode)mb.Tag!) == mode;
                 }
                 foreach (var lb in _ancLevelButtons)
                 {
-                    lb.Checked = false;
+                    lb.Selected = false;
                 }
                 if (_ancSubPanel != null) _ancSubPanel.Visible = false;
             }
@@ -507,5 +534,135 @@ public partial class MainForm : Form
     {
         await _controller.DisconnectAsync();
         _controller.Dispose();
+    }
+}
+
+/// <summary>
+/// 降噪模式圆角矩形选项卡片：以卡片形式展示模式名称，
+/// 选中时绘制彩色高亮边框，未选中时为浅灰描边，鼠标悬停时背景微亮。
+/// 替代原有 RadioButton 风格，提升「关闭 / 降噪 / 通透」主选项与
+/// 「智能 / 轻度 / 中度 / 深度」子选项的视觉一致性。
+/// </summary>
+internal sealed class AncOptionBox : Panel
+{
+    private const int CornerRadius = 14;
+    private static readonly Color SelectedColor = Color.FromArgb(0, 120, 215);
+    private static readonly Color SelectedBg = Color.FromArgb(235, 244, 255);
+    private static readonly Color UnselectedColor = Color.FromArgb(210, 214, 220);
+    private static readonly Color HoverBg = Color.FromArgb(248, 249, 251);
+    private static readonly Color TextColor = Color.FromArgb(48, 56, 65);
+
+    private bool _selected;
+    private bool _hover;
+    private readonly string _displayText;
+
+    /// <summary>用户点击该卡片时触发（与 RadioButton.CheckedChanged 等价的语义入口）。</summary>
+    public event EventHandler? OptionSelected;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool Selected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            _selected = value;
+            Invalidate();
+        }
+    }
+
+    public AncOptionBox(string text)
+    {
+        _displayText = text;
+        Size = new Size(140, 48);
+        BackColor = Color.White;
+        DoubleBuffered = true;
+        Cursor = Cursors.Hand;
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        base.OnClick(e);
+        OptionSelected?.Invoke(this, e);
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        if (!_hover)
+        {
+            _hover = true;
+            Invalidate();
+        }
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_hover)
+        {
+            _hover = false;
+            Invalidate();
+        }
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        base.OnEnabledChanged(e);
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+        using var path = BuildRoundedRect(rect, CornerRadius);
+
+        // 背景：选中 > 悬停 > 默认
+        Color bg = _selected ? SelectedBg : (_hover && Enabled ? HoverBg : Color.White);
+        using (var bgBrush = new SolidBrush(bg))
+        {
+            g.FillPath(bgBrush, path);
+        }
+
+        // 边框：选中加粗高亮色，否则细线浅灰；禁用时虚化
+        Color border = _selected ? SelectedColor : UnselectedColor;
+        if (!Enabled) border = Color.FromArgb(230, 232, 236);
+        float borderWidth = _selected ? 2.5f : 1f;
+        using (var borderPen = new Pen(border, borderWidth))
+        {
+            g.DrawPath(borderPen, path);
+        }
+
+        // 文字：选中着色高亮，禁用灰化
+        Color fg = !Enabled
+            ? Color.FromArgb(170, 174, 180)
+            : (_selected ? SelectedColor : TextColor);
+        using var font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        using var fgBrush = new SolidBrush(fg);
+        var sf = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+        g.DrawString(_displayText, font, fgBrush, rect, sf);
+    }
+
+    private static System.Drawing.Drawing2D.GraphicsPath BuildRoundedRect(Rectangle rect, int radius)
+    {
+        var path = new System.Drawing.Drawing2D.GraphicsPath();
+        int d = radius * 2;
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 }

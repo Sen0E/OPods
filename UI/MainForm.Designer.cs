@@ -135,7 +135,7 @@ partial class MainForm
 
         // ancGroup
         ancGroup.Location = new Point(16, 232);
-        ancGroup.Size = new Size(560, 130);
+        ancGroup.Size = new Size(560, 178);
         ancGroup.Text = "降噪模式";
 
         // ancButtonPanel —— 动态 ANC 按钮容器（代码按 profile 生成）
@@ -143,12 +143,12 @@ partial class MainForm
         ancButtonPanel.FlowDirection = FlowDirection.TopDown;
         ancButtonPanel.WrapContents = false;
         ancButtonPanel.AutoScroll = true;
-        ancButtonPanel.Padding = new Padding(8, 26, 8, 4);
+        ancButtonPanel.Padding = new Padding(10, 30, 10, 8);
 
         ancGroup.Controls.Add(ancButtonPanel);
 
         // eqGroup
-        eqGroup.Location = new Point(16, 364);
+        eqGroup.Location = new Point(16, 422);
         eqGroup.Size = new Size(560, 80);
         eqGroup.Text = "大师调音 (EQ)";
 
@@ -182,13 +182,13 @@ partial class MainForm
         eqGroup.Controls.Add(eqRawIdInput);
 
         // logGroup
-        logGroup.Location = new Point(16, 456);
-        logGroup.Size = new Size(560, 150);
+        logGroup.Location = new Point(16, 514);
+        logGroup.Size = new Size(560, 120);
         logGroup.Text = "日志";
 
         // logTextBox
         logTextBox.Location = new Point(12, 22);
-        logTextBox.Size = new Size(536, 120);
+        logTextBox.Size = new Size(536, 100);
         logTextBox.Multiline = true;
         logTextBox.ScrollBars = ScrollBars.Vertical;
         logTextBox.ReadOnly = true;
@@ -198,7 +198,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 618);
+        ClientSize = new Size(592, 650);
         Font = new Font("Segoe UI", 9F);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
@@ -212,7 +212,7 @@ partial class MainForm
         Controls.Add(logGroup);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = FormStartPosition.Manual;
         Text = "OPods — OPPO 耳机控制";
         Load += MainForm_Load;
         FormClosing += MainForm_FormClosing;
