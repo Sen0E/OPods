@@ -1,5 +1,6 @@
 namespace OPods.Pods;
 
+
 /// <summary>已知 0x0204 主动事件 eventCode。</summary>
 public static class NotificationEventCode
 {
