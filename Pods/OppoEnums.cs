@@ -13,6 +13,10 @@ public static class OppoEnums
     public static readonly byte[] QueryAnc = OppoPackets.BuildPacket(
         cmd: Cmd.QUERY_ANC_MODE, payload: new byte[] { 0x01, 0x01 });
 
+    /// <summary>Query EQ preset: AA 07 00 00 0F 01 F0 00 00</summary>
+    public static readonly byte[] QueryEq =
+        OppoPackets.BuildPacket(cmd: Cmd.QUERY_EQ);
+
     /// <summary>Enable game mode main switch: AA 09 00 00 03 04 00 02 00 28 01</summary>
     public static readonly byte[] GameModeOn = OppoPackets.BuildPacket(
         cmd: Cmd.SET_GAME_MODE, payload: new byte[] { (byte)GameModeFeature.MAIN, 0x01 });

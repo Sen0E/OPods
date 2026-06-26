@@ -15,6 +15,7 @@ public partial class MainForm : Form
     private readonly PodController _controller = new();
     private bool _suppressAncEvents;
     private bool _suppressGameModeEvents;
+    private bool _suppressEqEvents;
 
     private readonly List<RadioButton> _ancMainButtons = new();
     private readonly List<RadioButton> _ancLevelButtons = new();
@@ -31,16 +32,19 @@ public partial class MainForm : Form
         _controller.BatteryChanged += OnBatteryChanged;
         _controller.AncModeChanged += OnAncModeChanged;
         _controller.GameModeChanged += OnGameModeChanged;
+        _controller.EqPresetChanged += OnEqPresetChanged;
         _controller.Log += OnLog;
     }
 
     private void MainForm_Load(object? sender, EventArgs e)
     {
         BuildAncButtons(DeviceProfileRegistry.Default);
+        BuildEqUi(DeviceProfileRegistry.Default);
         UpdateConnectionUi();
         UpdateBatteryUi(_controller.Battery);
         UpdateAncUi(_controller.AncMode);
         UpdateGameModeUi(_controller.GameMode);
+        UpdateEqUi(_controller.EqPresetId);
         AppendLog("OPods 已启动。正在从系统配对表自动检测 OPPO 耳机…");
 
         // 启动时自动检测已连接的 OPPO 耳机并连接；未检测到时提示用户手动选择。
@@ -291,9 +295,11 @@ public partial class MainForm : Form
         if (state == ConnectionState.Connected)
         {
             BuildAncButtons(_controller.Profile);
+            BuildEqUi(_controller.Profile);
         }
         UpdateConnectionUi();
         UpdateAncUi(_controller.AncMode);
+        UpdateEqUi(_controller.EqPresetId);
     }
 
     private void OnBatteryChanged(object? sender, BatteryParams battery)
@@ -312,6 +318,72 @@ public partial class MainForm : Form
     {
         if (InvokeRequired) { BeginInvoke(() => OnGameModeChanged(sender, enabled)); return; }
         UpdateGameModeUi(enabled);
+    }
+
+    private void OnEqPresetChanged(object? sender, byte? presetId)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnEqPresetChanged(sender, presetId)); return; }
+        UpdateEqUi(presetId);
+    }
+
+    /// <summary>
+    /// 按 profile 重建 EQ 预设下拉框。不支持 EQ 的 profile 隐藏整个 EQ 分组。
+    /// </summary>
+    private void BuildEqUi(DeviceProfile profile)
+    {
+        _currentProfile = profile;
+        bool supported = profile.SupportsEq && profile.EqPresets.Count > 0;
+        eqGroup.Visible = supported;
+        if (!supported)
+        {
+            eqPresetCombo.Items.Clear();
+            return;
+        }
+
+        _suppressEqEvents = true;
+        try
+        {
+            eqPresetCombo.Items.Clear();
+            eqPresetCombo.DisplayMember = nameof(EqPresetDef.DisplayName);
+            foreach (var preset in profile.EqPresets)
+            {
+                eqPresetCombo.Items.Add(preset);
+            }
+        }
+        finally { _suppressEqEvents = false; }
+    }
+
+    /// <summary>根据当前 EQ 预设 id 同步下拉框选中项。</summary>
+    private void UpdateEqUi(byte? presetId)
+    {
+        _suppressEqEvents = true;
+        try
+        {
+            eqPresetCombo.SelectedIndex = -1;
+            if (presetId.HasValue && _currentProfile.SupportsEq)
+            {
+                for (int i = 0; i < _currentProfile.EqPresets.Count; i++)
+                {
+                    if (_currentProfile.EqPresets[i].PresetId == presetId.Value)
+                    {
+                        eqPresetCombo.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        finally { _suppressEqEvents = false; }
+
+        eqPresetCombo.Enabled = _controller.State == ConnectionState.Connected &&
+                                _currentProfile.SupportsEq;
+    }
+
+    private async void EqPresetCombo_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEqEvents) return;
+        if (_controller.State != ConnectionState.Connected) return;
+        if (eqPresetCombo.SelectedItem is not EqPresetDef preset) return;
+        await _controller.SetEqPresetAsync(preset.PresetId);
     }
 
     private void OnLog(object? sender, string message)

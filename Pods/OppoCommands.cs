@@ -13,6 +13,9 @@ public static class Cmd
     public const int QUERY_STATUS = 0x010D;
     public const int QUERY_STATUS_RESPONSE = 0x810D;
     public const int SET_GAME_MODE_RESPONSE = 0x8403;
+    public const int SET_EQ = 0x0406;
+    public const int QUERY_EQ = 0x010F;
+    public const int EQ_RESPONSE = 0x810F;
 }
 
 /// <summary>Battery component index in response payload.</summary>

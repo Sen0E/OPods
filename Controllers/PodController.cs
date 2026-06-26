@@ -30,6 +30,11 @@ public sealed class PodController : IDisposable
     public bool GameMode { get; private set; }
     public string DeviceName { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// 当前 EQ 预设 id（来自耳机上报 / 查询响应）。null 表示未知或不支持。
+    /// </summary>
+    public byte? EqPresetId { get; private set; }
+
     /// <summary>当前连接机型的配置，未连接时为 <see cref="DeviceProfileRegistry.Default"/>。</summary>
     public DeviceProfile Profile { get; private set; } = DeviceProfileRegistry.Default;
 
@@ -37,6 +42,7 @@ public sealed class PodController : IDisposable
     public event EventHandler<BatteryParams>? BatteryChanged;
     public event EventHandler<NoiseControlMode>? AncModeChanged;
     public event EventHandler<bool>? GameModeChanged;
+    public event EventHandler<byte?>? EqPresetChanged;
     public event EventHandler<string>? Log;
 
     public async Task ConnectAsync(
@@ -180,6 +186,15 @@ public sealed class PodController : IDisposable
             LogMsg($"Switch feature response: status={setFeatureResult.Status}, value={setFeatureResult.Value}");
             return;
         }
+
+        var eqResult = EqPresetParser.Parse(packet);
+        if (eqResult != null)
+        {
+            LogMsg($"EQ preset received: id={eqResult}");
+            EqPresetId = eqResult;
+            EqPresetChanged?.Invoke(this, EqPresetId);
+            return;
+        }
     }
 
     private static PodParams? ToPodParams(BatteryInfo? info)
@@ -215,6 +230,11 @@ public sealed class PodController : IDisposable
             await SendAsync(OppoEnums.QueryBattery, ct).ConfigureAwait(false);
             await Task.Delay(50, ct).ConfigureAwait(false);
             await SendAsync(OppoEnums.QueryAnc, ct).ConfigureAwait(false);
+            if (Profile.SupportsEq)
+            {
+                await Task.Delay(50, ct).ConfigureAwait(false);
+                await SendAsync(OppoEnums.QueryEq, ct).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception e)
@@ -240,6 +260,23 @@ public sealed class PodController : IDisposable
         var packet = Profile.BuildAncPacket(mode);
         AncMode = mode;
         AncModeChanged?.Invoke(this, AncMode);
+        await SendAsync(packet, _cts.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 切换 EQ 预设。仅当当前 profile 支持 EQ 时生效。
+    /// </summary>
+    public async Task SetEqPresetAsync(byte presetId)
+    {
+        if (!Profile.SupportsEq)
+        {
+            EqPresetId = null;
+            EqPresetChanged?.Invoke(this, EqPresetId);
+            return;
+        }
+        EqPresetId = presetId;
+        EqPresetChanged?.Invoke(this, EqPresetId);
+        var packet = Profile.BuildEqPacket(presetId);
         await SendAsync(packet, _cts.Token).ConfigureAwait(false);
     }
 
@@ -282,10 +319,12 @@ public sealed class PodController : IDisposable
         AncMode = NoiseControlMode.Off;
         DeviceName = string.Empty;
         GameMode = false;
+        EqPresetId = null;
         Profile = DeviceProfileRegistry.Default;
         BatteryChanged?.Invoke(this, Battery);
         AncModeChanged?.Invoke(this, AncMode);
         GameModeChanged?.Invoke(this, GameMode);
+        EqPresetChanged?.Invoke(this, EqPresetId);
         await Task.CompletedTask;
     }
 

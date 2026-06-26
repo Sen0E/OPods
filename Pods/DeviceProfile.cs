@@ -10,7 +10,7 @@ public sealed record AncModeDef(
     (int V1, int V2) ResponseCode);
 
 /// <summary>
-/// EQ 预设定义（机型专属，当前 C# 尚未实现 EQ 命令，仅预留数据）。
+/// EQ 预设定义：UI 显示名 + 协议 preset id（SET_EQ 载荷单字节）。
 /// </summary>
 public sealed record EqPresetDef(
     string DisplayName,
@@ -88,6 +88,22 @@ public abstract class DeviceProfile
         Buffer.BlockCopy(def.SetPayload, 0, payload, 2, def.SetPayload.Length);
         return OppoPackets.BuildPacket(Cmd.SET_ANC, payload: payload);
     }
+
+    /// <summary>
+    /// 构造 SET_EQ 命令包。载荷为单字节 preset id。
+    /// </summary>
+    /// <exception cref="InvalidOperationException">该 profile 不支持 EQ。</exception>
+    public byte[] BuildEqPacket(byte presetId)
+    {
+        if (!SupportsEq) throw new InvalidOperationException($"Profile {ModelName} 不支持 EQ");
+        return OppoPackets.BuildPacket(Cmd.SET_EQ, payload: new byte[] { presetId });
+    }
+
+    /// <summary>
+    /// 按 preset id 反查 EQ 预设；未命中返回 null。
+    /// </summary>
+    public EqPresetDef? ResolveEqPreset(byte presetId) =>
+        EqPresets.FirstOrDefault(p => p.PresetId == presetId);
 }
 
 /// <summary>默认 UUID 常量（OPPO/HeyMelody 通用）。</summary>

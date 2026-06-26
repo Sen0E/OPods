@@ -24,6 +24,10 @@ partial class MainForm
     private Label gameModeImplLabel;
     private ComboBox gameModeImplCombo;
 
+    private GroupBox eqGroup;
+    private Label eqPresetLabel;
+    private ComboBox eqPresetCombo;
+
     private GroupBox logGroup;
     private TextBox logTextBox;
 
@@ -59,6 +63,10 @@ partial class MainForm
         gameModeCheckBox = new CheckBox();
         gameModeImplLabel = new Label();
         gameModeImplCombo = new ComboBox();
+
+        eqGroup = new GroupBox();
+        eqPresetLabel = new Label();
+        eqPresetCombo = new ComboBox();
 
         logGroup = new GroupBox();
         logTextBox = new TextBox();
@@ -169,8 +177,27 @@ partial class MainForm
         gameModeGroup.Controls.Add(gameModeImplLabel);
         gameModeGroup.Controls.Add(gameModeImplCombo);
 
+        // eqGroup
+        eqGroup.Location = new Point(16, 462);
+        eqGroup.Size = new Size(560, 80);
+        eqGroup.Text = "大师调音 (EQ)";
+
+        // eqPresetLabel
+        eqPresetLabel.AutoSize = true;
+        eqPresetLabel.Location = new Point(20, 38);
+        eqPresetLabel.Text = "预设：";
+
+        // eqPresetCombo —— 内容由代码按 profile 动态填充
+        eqPresetCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        eqPresetCombo.Location = new Point(85, 34);
+        eqPresetCombo.Size = new Size(180, 28);
+        eqPresetCombo.SelectedIndexChanged += EqPresetCombo_SelectedIndexChanged;
+
+        eqGroup.Controls.Add(eqPresetLabel);
+        eqGroup.Controls.Add(eqPresetCombo);
+
         // logGroup
-        logGroup.Location = new Point(16, 462);
+        logGroup.Location = new Point(16, 552);
         logGroup.Size = new Size(560, 130);
         logGroup.Text = "日志";
 
@@ -186,7 +213,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 602);
+        ClientSize = new Size(592, 692);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
         Controls.Add(statusDotLabel);
@@ -196,6 +223,7 @@ partial class MainForm
         Controls.Add(batteryGroup);
         Controls.Add(ancGroup);
         Controls.Add(gameModeGroup);
+        Controls.Add(eqGroup);
         Controls.Add(logGroup);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
