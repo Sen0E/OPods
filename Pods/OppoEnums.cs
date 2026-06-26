@@ -73,6 +73,15 @@ public static class OppoEnums
     public static readonly byte[] SpatialOff = OppoPackets.BuildPacket(
         cmd: Cmd.SET_GAME_MODE, payload: new byte[] { (byte)FeatureId.SPATIAL_TYPES, 0x00 });
 
+    /// <summary>
+    /// 构造通用 feature 开关包（0x0403 载荷 [featureId, 0x01/0x00]）。
+    /// 用于多设备连接、听感增强等任意 feature 的开/关。
+    /// </summary>
+    public static byte[] BuildFeatureSwitchPacket(int featureId, bool enabled) =>
+        OppoPackets.BuildPacket(
+            cmd: Cmd.SET_GAME_MODE,
+            payload: new byte[] { (byte)featureId, (byte)(enabled ? 0x01 : 0x00) });
+
     // ---- 通知注册 ----
 
     /// <summary>Build a single-event notification register packet (0x0201).</summary>

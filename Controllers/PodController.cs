@@ -410,15 +410,18 @@ public sealed class PodController : IDisposable
         }
     }
 
-    /// <summary>能力发现流程：依次发送 0x0100/0x0114/0x012A/0x010D/0x0200。单项失败不阻断整体。</summary>
+    /// <summary>能力发现流程：依次发送 0x0100/0x0114/0x012A/0x010D/0x010F/0x0200。单项失败不阻断整体。</summary>
     private async Task DiscoverCapabilitiesAsync(CancellationToken ct)
     {
+        // EQ 查询放入发现阶段：设备若支持会回 0x810F 并置位 SupportsEq，
+        // 避免「仅当 SupportsEq 才查询 EQ」的鸡蛋问题导致 EQ 分组永远隐藏。
         var queries = new (string name, byte[] packet)[]
         {
             ("capability", OppoEnums.QueryCapability),
             ("codec", OppoEnums.QueryCodec),
             ("spatialType", OppoEnums.QuerySpatialType),
             ("featureSwitch", OppoEnums.QueryFeatureSwitchAll),
+            ("eq", OppoEnums.QueryEq),
             ("notifCapability", OppoEnums.QueryNotifCapability),
         };
 
@@ -544,6 +547,20 @@ public sealed class PodController : IDisposable
         var packet = enabled ? OppoEnums.SpatialOn : OppoEnums.SpatialOff;
         await SendAsync(packet, _cts.Token).ConfigureAwait(false);
         LogMsg($"Spatial audio set: {enabled}");
+    }
+
+    /// <summary>
+    /// 切换双设备连接开关（0x0403 载荷 [0x11, 01/00]）。
+    /// 仅当能力发现确认设备声明支持 feature 0x11 时生效。
+    /// </summary>
+    public async Task SetMultiDeviceAsync(bool enabled)
+    {
+        if (!Capabilities.SupportsMultiDevice) return;
+        var packet = OppoEnums.BuildFeatureSwitchPacket(FeatureId.MULTI_DEVICES_CONNECT, enabled);
+        await SendAsync(packet, _cts.Token).ConfigureAwait(false);
+        LogMsg($"Multi-device connect set: {enabled}");
+        // 设置后刷新功能开关以同步状态
+        _ = RefreshFeatureSwitchesAsync();
     }
 
     public void SetGameModeImplementation(GameModeImplementation implementation)

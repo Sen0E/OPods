@@ -19,6 +19,7 @@ public partial class MainForm : Form
     private bool _suppressGameModeEvents;
     private bool _suppressEqEvents;
     private bool _suppressSpatialEvents;
+    private bool _suppressMultiDeviceEvents;
 
     private readonly List<RadioButton> _ancMainButtons = new();
     private readonly List<RadioButton> _ancLevelButtons = new();
@@ -304,6 +305,13 @@ public partial class MainForm : Form
         await _controller.SetSpatialAudioAsync(spatialAudioCheckBox.Checked);
     }
 
+    private async void MultiDeviceCheckBox_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_suppressMultiDeviceEvents) return;
+        if (_controller.State != ConnectionState.Connected) return;
+        await _controller.SetMultiDeviceAsync(multiDeviceCheckBox.Checked);
+    }
+
     private async void EqRawIdInput_ValueChanged(object? sender, EventArgs e)
     {
         if (_suppressEqEvents) return;
@@ -576,15 +584,23 @@ public partial class MainForm : Form
             finally { _suppressGameModeEvents = false; }
         }
 
+        // 双设备连接：能力发现确认支持才显示 checkbox
+        multiDeviceCheckBox.Visible = connected && cap.SupportsMultiDevice;
+        if (multiDeviceCheckBox.Visible)
+        {
+            UpdateMultiDeviceUi(cap.IsFeatureEnabled(FeatureId.MULTI_DEVICES_CONNECT));
+        }
+
         // EQ 可见性由 UpdateEqUi 处理（依赖 SupportsEq）
         UpdateEqUi(_controller.EqPresetId);
     }
 
-    /// <summary>更新设备信息分组：编解码器。</summary>
+    /// <summary>更新设备信息分组：编解码器 + 双设备连接状态。</summary>
     private void UpdateDeviceInfoUi()
     {
         codecValueLabel.Text = string.IsNullOrEmpty(_controller.CodecName) ? "--" : _controller.CodecName;
         UpdateWearStatusUi(_controller.WearStatus);
+        UpdateMultiDeviceUi(_controller.Capabilities.IsFeatureEnabled(FeatureId.MULTI_DEVICES_CONNECT));
     }
 
     private void UpdateWearStatusUi(WearStatus? wear)
@@ -614,6 +630,20 @@ public partial class MainForm : Form
             _suppressSpatialEvents = false;
         }
         spatialAudioCheckBox.Enabled = _controller.State == ConnectionState.Connected;
+    }
+
+    private void UpdateMultiDeviceUi(bool enabled)
+    {
+        _suppressMultiDeviceEvents = true;
+        try
+        {
+            multiDeviceCheckBox.Checked = enabled;
+        }
+        finally
+        {
+            _suppressMultiDeviceEvents = false;
+        }
+        multiDeviceCheckBox.Enabled = _controller.State == ConnectionState.Connected;
     }
 
     private void AppendLog(string message)

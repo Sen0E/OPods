@@ -27,10 +27,9 @@ public sealed class EncoFree3Profile : DeviceProfile
 
     private static readonly EqPresetDef[] _eqPresets =
     {
-        new("至臻原音", 0),
-        new("纯享人声", 1),
-        new("澎湃低音", 2),
-        new("活力动感", 7),
+        new("纯粹原音", 0),
+        new("脉冲低音", 1),
+        new("自然竹韵", 2),
     };
 
     /// <inheritdoc />

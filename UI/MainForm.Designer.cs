@@ -21,6 +21,7 @@ partial class MainForm
     private Label codecValueLabel;
     private Label wearLeftLabel;
     private Label wearRightLabel;
+    private CheckBox multiDeviceCheckBox;
 
     private GroupBox ancGroup;
     private FlowLayoutPanel ancButtonPanel;
@@ -72,6 +73,7 @@ partial class MainForm
         codecValueLabel = new Label();
         wearLeftLabel = new Label();
         wearRightLabel = new Label();
+        multiDeviceCheckBox = new CheckBox();
 
         ancGroup = new GroupBox();
         ancButtonPanel = new FlowLayoutPanel();
@@ -161,9 +163,9 @@ partial class MainForm
         batteryGroup.Controls.Add(rightBatteryLabel);
         batteryGroup.Controls.Add(caseBatteryLabel);
 
-        // deviceInfoGroup —— 编解码器 + 佩戴状态
+        // deviceInfoGroup —— 编解码器 + 佩戴状态 + 双设备连接
         deviceInfoGroup.Location = new Point(16, 232);
-        deviceInfoGroup.Size = new Size(560, 90);
+        deviceInfoGroup.Size = new Size(560, 122);
         deviceInfoGroup.Text = "设备信息";
 
         // codecLabel
@@ -189,13 +191,21 @@ partial class MainForm
         wearRightLabel.TextAlign = ContentAlignment.MiddleLeft;
         wearRightLabel.Text = "右耳：--";
 
+        // multiDeviceCheckBox —— 仅当 Capabilities.SupportsMultiDevice 时显示
+        multiDeviceCheckBox.Location = new Point(20, 88);
+        multiDeviceCheckBox.Size = new Size(260, 24);
+        multiDeviceCheckBox.Text = "双设备连接";
+        multiDeviceCheckBox.Visible = false;
+        multiDeviceCheckBox.CheckedChanged += MultiDeviceCheckBox_CheckedChanged;
+
         deviceInfoGroup.Controls.Add(codecLabel);
         deviceInfoGroup.Controls.Add(codecValueLabel);
         deviceInfoGroup.Controls.Add(wearLeftLabel);
         deviceInfoGroup.Controls.Add(wearRightLabel);
+        deviceInfoGroup.Controls.Add(multiDeviceCheckBox);
 
         // ancGroup
-        ancGroup.Location = new Point(16, 332);
+        ancGroup.Location = new Point(16, 364);
         ancGroup.Size = new Size(560, 130);
         ancGroup.Text = "降噪模式";
 
@@ -209,7 +219,7 @@ partial class MainForm
         ancGroup.Controls.Add(ancButtonPanel);
 
         // gameModeGroup
-        gameModeGroup.Location = new Point(16, 472);
+        gameModeGroup.Location = new Point(16, 504);
         gameModeGroup.Size = new Size(560, 80);
         gameModeGroup.Text = "游戏模式";
 
@@ -236,21 +246,21 @@ partial class MainForm
         gameModeGroup.Controls.Add(gameModeImplCombo);
 
         // spatialAudioGroup —— 仅当 Capabilities.SupportsSpatialAudio 时显示
-        spatialAudioGroup.Location = new Point(16, 562);
+        spatialAudioGroup.Location = new Point(16, 594);
         spatialAudioGroup.Size = new Size(560, 64);
         spatialAudioGroup.Text = "空间音频";
         spatialAudioGroup.Visible = false;
 
-        // spatialAudioCheckBox
+        // spatialAudioCheckBox —— Free3 仅有"关闭/固定"两档，checkbox 即固定模式开关
         spatialAudioCheckBox.Location = new Point(20, 28);
         spatialAudioCheckBox.Size = new Size(160, 28);
-        spatialAudioCheckBox.Text = "开启空间音频";
+        spatialAudioCheckBox.Text = "固定空间音频";
         spatialAudioCheckBox.CheckedChanged += SpatialAudioCheckBox_CheckedChanged;
 
         spatialAudioGroup.Controls.Add(spatialAudioCheckBox);
 
         // eqGroup
-        eqGroup.Location = new Point(16, 636);
+        eqGroup.Location = new Point(16, 668);
         eqGroup.Size = new Size(560, 80);
         eqGroup.Text = "大师调音 (EQ)";
 
@@ -284,7 +294,7 @@ partial class MainForm
         eqGroup.Controls.Add(eqRawIdInput);
 
         // logGroup
-        logGroup.Location = new Point(16, 726);
+        logGroup.Location = new Point(16, 758);
         logGroup.Size = new Size(560, 130);
         logGroup.Text = "日志";
 
@@ -300,7 +310,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 866);
+        ClientSize = new Size(592, 898);
         Font = new Font("Segoe UI", 9F);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
