@@ -88,7 +88,7 @@ partial class MainForm
         statusDotLabel.AutoSize = true;
         statusDotLabel.Location = new Point(16, 44);
         statusDotLabel.Text = "●";
-        statusDotLabel.ForeColor = Color.Gray;
+        statusDotLabel.ForeColor = SystemColors.ControlDark;
 
         // statusTextLabel
         statusTextLabel.AutoSize = true;
@@ -115,21 +115,24 @@ partial class MainForm
         batteryGroup.Text = "电量";
 
         // leftBatteryLabel
-        leftBatteryLabel.Location = new Point(20, 30);
-        leftBatteryLabel.Size = new Size(160, 60);
+        leftBatteryLabel.Location = new Point(20, 28);
+        leftBatteryLabel.Size = new Size(160, 64);
         leftBatteryLabel.TextAlign = ContentAlignment.MiddleCenter;
+        leftBatteryLabel.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         leftBatteryLabel.Text = "左耳\n--";
 
         // rightBatteryLabel
-        rightBatteryLabel.Location = new Point(200, 30);
-        rightBatteryLabel.Size = new Size(160, 60);
+        rightBatteryLabel.Location = new Point(200, 28);
+        rightBatteryLabel.Size = new Size(160, 64);
         rightBatteryLabel.TextAlign = ContentAlignment.MiddleCenter;
+        rightBatteryLabel.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         rightBatteryLabel.Text = "右耳\n--";
 
         // caseBatteryLabel
-        caseBatteryLabel.Location = new Point(380, 30);
-        caseBatteryLabel.Size = new Size(160, 60);
+        caseBatteryLabel.Location = new Point(380, 28);
+        caseBatteryLabel.Size = new Size(160, 64);
         caseBatteryLabel.TextAlign = ContentAlignment.MiddleCenter;
+        caseBatteryLabel.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         caseBatteryLabel.Text = "充电盒\n--";
 
         batteryGroup.Controls.Add(leftBatteryLabel);
@@ -214,6 +217,7 @@ partial class MainForm
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(592, 692);
+        Font = new Font("Segoe UI", 9F);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
         Controls.Add(statusDotLabel);

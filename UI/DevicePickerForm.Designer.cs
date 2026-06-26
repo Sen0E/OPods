@@ -98,6 +98,7 @@ partial class DevicePickerForm
         // DevicePickerForm
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(584, 390);
+        Font = new Font("Segoe UI", 9F);
         Controls.Add(scanButton);
         Controls.Add(statusLabel);
         Controls.Add(scanProgress);

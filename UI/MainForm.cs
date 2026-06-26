@@ -397,10 +397,12 @@ public partial class MainForm : Form
         deviceNameLabel.Text = string.IsNullOrEmpty(_controller.DeviceName) ? "(未连接)" : _controller.DeviceName;
         var (color, text) = _controller.State switch
         {
+            // 语义色 Green/Orange/Red 在浅色与深色背景下均清晰可辨；
+            // 未连接用 SystemColors.ControlDark，随主题自动映射。
             ConnectionState.Connected => (Color.Green, "已连接"),
             ConnectionState.Connecting => (Color.Orange, "连接中…"),
             ConnectionState.Error => (Color.Red, "连接错误"),
-            _ => (Color.Gray, "未连接")
+            _ => (SystemColors.ControlDark, "未连接")
         };
         statusDotLabel.ForeColor = color;
         statusTextLabel.Text = text;
