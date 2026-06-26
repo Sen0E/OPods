@@ -593,6 +593,27 @@ public partial class MainForm : Form
 
         // EQ 可见性由 UpdateEqUi 处理（依赖 SupportsEq）
         UpdateEqUi(_controller.EqPresetId);
+
+        // 动态重排：隐藏的分组不留白，后续分组自动上移补位
+        RelayoutDynamicGroups();
+    }
+
+    /// <summary>
+    /// 按可见性重排动态分组（游戏模式/空间音频/EQ），隐藏的分组不留白。
+    /// 锚点为 ancGroup 底部，各分组间距 12px。
+    /// </summary>
+    private void RelayoutDynamicGroups()
+    {
+        int y = ancGroup.Bottom + 12;
+        foreach (var g in new[] { gameModeGroup, spatialAudioGroup, eqGroup })
+        {
+            if (!g.Visible) continue;
+            if (g.Top != y) g.Top = y;
+            y = g.Bottom + 12;
+        }
+
+        // 日志分组紧跟最后一个可见分组
+        logGroup.Top = y;
     }
 
     /// <summary>更新设备信息分组：编解码器 + 双设备连接状态。</summary>
