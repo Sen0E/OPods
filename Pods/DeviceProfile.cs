@@ -17,8 +17,9 @@ public sealed record EqPresetDef(
     byte PresetId);
 
 /// <summary>
-/// 机型配置抽象基类。所有机型相关数据（支持的 ANC 模式、连接参数、功能开关）
-/// 收拢到此对象，运行时按蓝牙设备名解析出对应 profile，所有发包 / 解析 / UI 生成均查 profile。
+/// 机型配置抽象基类。协议优先重构后，profile 仅负责「协议未直接暴露的兜底提示」：
+/// ANC 模式枚举与显示名/响应码映射、连接参数、EQ 预设显示名。
+/// 空间音频/EQ/游戏模式等功能开关的可见性改由 <see cref="DeviceCapabilities"/>（运行时协议发现）决定。
 /// </summary>
 public abstract class DeviceProfile
 {
@@ -42,19 +43,11 @@ public abstract class DeviceProfile
     /// <summary>推荐的连接方式（可被用户选择覆盖）。</summary>
     public virtual RfcommConnectionMethod PreferredMethod => RfcommConnectionMethod.Uuid;
 
-    /// <summary>是否支持游戏模式。</summary>
-    public virtual bool SupportsGameMode => true;
-
-    /// <summary>默认的游戏模式实现方式。</summary>
-    public virtual GameModeImplementation DefaultGameModeImpl => GameModeImplementation.Standard;
-
-    /// <summary>是否支持空间音频。</summary>
-    public virtual bool SupportsSpatialAudio => false;
-
-    /// <summary>是否支持 EQ。</summary>
-    public virtual bool SupportsEq => false;
-
-    /// <summary>EQ 预设列表（仅当 <see cref="SupportsEq"/> 为 true 时有意义）。</summary>
+    /// <summary>
+    /// EQ 预设显示名列表（仅作 UI 显示名映射；是否支持 EQ 由
+    /// <see cref="DeviceCapabilities.SupportsEq"/> 决定）。空列表表示无预设名，
+    /// UI 将回退到原始 preset id 输入。
+    /// </summary>
     public virtual IReadOnlyList<EqPresetDef> EqPresets => Array.Empty<EqPresetDef>();
 
     /// <summary>
@@ -91,13 +84,10 @@ public abstract class DeviceProfile
 
     /// <summary>
     /// 构造 SET_EQ 命令包。载荷为单字节 preset id。
+    /// 是否允许调用由 <see cref="DeviceCapabilities.SupportsEq"/> 决定，本方法不再做 profile 级守卫。
     /// </summary>
-    /// <exception cref="InvalidOperationException">该 profile 不支持 EQ。</exception>
-    public byte[] BuildEqPacket(byte presetId)
-    {
-        if (!SupportsEq) throw new InvalidOperationException($"Profile {ModelName} 不支持 EQ");
-        return OppoPackets.BuildPacket(Cmd.SET_EQ, payload: new byte[] { presetId });
-    }
+    public byte[] BuildEqPacket(byte presetId) =>
+        OppoPackets.BuildPacket(Cmd.SET_EQ, payload: new byte[] { presetId });
 
     /// <summary>
     /// 按 preset id 反查 EQ 预设；未命中返回 null。

@@ -2,7 +2,7 @@ namespace OPods.Pods;
 
 /// <summary>
 /// OPPO Enco Free3 机型配置。
-/// 支持 4 级降噪（智能/轻度/中度/深度）、通透，以及空间音频与 EQ。
+/// 支持 4 级降噪（智能/轻度/中度/深度）、通透。空间音频/EQ 等能力由运行时协议发现决定。
 /// </summary>
 public sealed class EncoFree3Profile : DeviceProfile
 {
@@ -24,12 +24,6 @@ public sealed class EncoFree3Profile : DeviceProfile
 
     /// <inheritdoc />
     public override IReadOnlyList<AncModeDef> AncModes => _ancModes;
-
-    /// <inheritdoc />
-    public override bool SupportsSpatialAudio => true;
-
-    /// <inheritdoc />
-    public override bool SupportsEq => true;
 
     private static readonly EqPresetDef[] _eqPresets =
     {

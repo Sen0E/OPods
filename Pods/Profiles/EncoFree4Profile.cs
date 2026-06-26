@@ -29,12 +29,6 @@ public sealed class EncoFree4Profile : DeviceProfile
     /// <inheritdoc />
     public override IReadOnlyList<AncModeDef> AncModes => _ancModes;
 
-    /// <inheritdoc />
-    public override bool SupportsSpatialAudio => true;
-
-    /// <inheritdoc />
-    public override bool SupportsEq => true;
-
     private static readonly EqPresetDef[] _eqPresets =
     {
         new("至臻原音", 0),

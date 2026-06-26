@@ -16,6 +16,12 @@ partial class MainForm
     private Label rightBatteryLabel;
     private Label caseBatteryLabel;
 
+    private GroupBox deviceInfoGroup;
+    private Label codecLabel;
+    private Label codecValueLabel;
+    private Label wearLeftLabel;
+    private Label wearRightLabel;
+
     private GroupBox ancGroup;
     private FlowLayoutPanel ancButtonPanel;
 
@@ -24,9 +30,14 @@ partial class MainForm
     private Label gameModeImplLabel;
     private ComboBox gameModeImplCombo;
 
+    private GroupBox spatialAudioGroup;
+    private CheckBox spatialAudioCheckBox;
+
     private GroupBox eqGroup;
     private Label eqPresetLabel;
     private ComboBox eqPresetCombo;
+    private Label eqRawIdLabel;
+    private NumericUpDown eqRawIdInput;
 
     private GroupBox logGroup;
     private TextBox logTextBox;
@@ -56,6 +67,12 @@ partial class MainForm
         rightBatteryLabel = new Label();
         caseBatteryLabel = new Label();
 
+        deviceInfoGroup = new GroupBox();
+        codecLabel = new Label();
+        codecValueLabel = new Label();
+        wearLeftLabel = new Label();
+        wearRightLabel = new Label();
+
         ancGroup = new GroupBox();
         ancButtonPanel = new FlowLayoutPanel();
 
@@ -64,9 +81,14 @@ partial class MainForm
         gameModeImplLabel = new Label();
         gameModeImplCombo = new ComboBox();
 
+        spatialAudioGroup = new GroupBox();
+        spatialAudioCheckBox = new CheckBox();
+
         eqGroup = new GroupBox();
         eqPresetLabel = new Label();
         eqPresetCombo = new ComboBox();
+        eqRawIdLabel = new Label();
+        eqRawIdInput = new NumericUpDown();
 
         logGroup = new GroupBox();
         logTextBox = new TextBox();
@@ -139,8 +161,41 @@ partial class MainForm
         batteryGroup.Controls.Add(rightBatteryLabel);
         batteryGroup.Controls.Add(caseBatteryLabel);
 
+        // deviceInfoGroup —— 编解码器 + 佩戴状态
+        deviceInfoGroup.Location = new Point(16, 232);
+        deviceInfoGroup.Size = new Size(560, 90);
+        deviceInfoGroup.Text = "设备信息";
+
+        // codecLabel
+        codecLabel.AutoSize = true;
+        codecLabel.Location = new Point(20, 30);
+        codecLabel.Text = "编解码器：";
+
+        // codecValueLabel
+        codecValueLabel.AutoSize = true;
+        codecValueLabel.Location = new Point(90, 30);
+        codecValueLabel.Font = new Font(Font, FontStyle.Bold);
+        codecValueLabel.Text = "--";
+
+        // wearLeftLabel
+        wearLeftLabel.Location = new Point(20, 56);
+        wearLeftLabel.Size = new Size(260, 24);
+        wearLeftLabel.TextAlign = ContentAlignment.MiddleLeft;
+        wearLeftLabel.Text = "左耳：--";
+
+        // wearRightLabel
+        wearRightLabel.Location = new Point(290, 56);
+        wearRightLabel.Size = new Size(260, 24);
+        wearRightLabel.TextAlign = ContentAlignment.MiddleLeft;
+        wearRightLabel.Text = "右耳：--";
+
+        deviceInfoGroup.Controls.Add(codecLabel);
+        deviceInfoGroup.Controls.Add(codecValueLabel);
+        deviceInfoGroup.Controls.Add(wearLeftLabel);
+        deviceInfoGroup.Controls.Add(wearRightLabel);
+
         // ancGroup
-        ancGroup.Location = new Point(16, 232);
+        ancGroup.Location = new Point(16, 332);
         ancGroup.Size = new Size(560, 130);
         ancGroup.Text = "降噪模式";
 
@@ -154,7 +209,7 @@ partial class MainForm
         ancGroup.Controls.Add(ancButtonPanel);
 
         // gameModeGroup
-        gameModeGroup.Location = new Point(16, 372);
+        gameModeGroup.Location = new Point(16, 472);
         gameModeGroup.Size = new Size(560, 80);
         gameModeGroup.Text = "游戏模式";
 
@@ -180,8 +235,22 @@ partial class MainForm
         gameModeGroup.Controls.Add(gameModeImplLabel);
         gameModeGroup.Controls.Add(gameModeImplCombo);
 
+        // spatialAudioGroup —— 仅当 Capabilities.SupportsSpatialAudio 时显示
+        spatialAudioGroup.Location = new Point(16, 562);
+        spatialAudioGroup.Size = new Size(560, 64);
+        spatialAudioGroup.Text = "空间音频";
+        spatialAudioGroup.Visible = false;
+
+        // spatialAudioCheckBox
+        spatialAudioCheckBox.Location = new Point(20, 28);
+        spatialAudioCheckBox.Size = new Size(160, 28);
+        spatialAudioCheckBox.Text = "开启空间音频";
+        spatialAudioCheckBox.CheckedChanged += SpatialAudioCheckBox_CheckedChanged;
+
+        spatialAudioGroup.Controls.Add(spatialAudioCheckBox);
+
         // eqGroup
-        eqGroup.Location = new Point(16, 462);
+        eqGroup.Location = new Point(16, 636);
         eqGroup.Size = new Size(560, 80);
         eqGroup.Text = "大师调音 (EQ)";
 
@@ -196,11 +265,26 @@ partial class MainForm
         eqPresetCombo.Size = new Size(180, 28);
         eqPresetCombo.SelectedIndexChanged += EqPresetCombo_SelectedIndexChanged;
 
+        // eqRawIdLabel / eqRawIdInput —— 无预设名时回退到原始 preset id 输入
+        eqRawIdLabel.AutoSize = true;
+        eqRawIdLabel.Location = new Point(20, 38);
+        eqRawIdLabel.Text = "Preset ID：";
+        eqRawIdLabel.Visible = false;
+
+        eqRawIdInput.Location = new Point(95, 34);
+        eqRawIdInput.Size = new Size(80, 28);
+        eqRawIdInput.Minimum = 0;
+        eqRawIdInput.Maximum = 255;
+        eqRawIdInput.Visible = false;
+        eqRawIdInput.ValueChanged += EqRawIdInput_ValueChanged;
+
         eqGroup.Controls.Add(eqPresetLabel);
         eqGroup.Controls.Add(eqPresetCombo);
+        eqGroup.Controls.Add(eqRawIdLabel);
+        eqGroup.Controls.Add(eqRawIdInput);
 
         // logGroup
-        logGroup.Location = new Point(16, 552);
+        logGroup.Location = new Point(16, 726);
         logGroup.Size = new Size(560, 130);
         logGroup.Text = "日志";
 
@@ -216,7 +300,7 @@ partial class MainForm
 
         // MainForm
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(592, 692);
+        ClientSize = new Size(592, 866);
         Font = new Font("Segoe UI", 9F);
         Controls.Add(deviceLabel);
         Controls.Add(deviceNameLabel);
@@ -225,8 +309,10 @@ partial class MainForm
         Controls.Add(changeDeviceButton);
         Controls.Add(refreshButton);
         Controls.Add(batteryGroup);
+        Controls.Add(deviceInfoGroup);
         Controls.Add(ancGroup);
         Controls.Add(gameModeGroup);
+        Controls.Add(spatialAudioGroup);
         Controls.Add(eqGroup);
         Controls.Add(logGroup);
         FormBorderStyle = FormBorderStyle.FixedSingle;

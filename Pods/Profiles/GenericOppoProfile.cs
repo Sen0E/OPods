@@ -22,10 +22,4 @@ public sealed class GenericOppoProfile : DeviceProfile
 
     /// <inheritdoc />
     public override IReadOnlyList<AncModeDef> AncModes => _ancModes;
-
-    /// <inheritdoc />
-    public override bool SupportsSpatialAudio => false;
-
-    /// <inheritdoc />
-    public override bool SupportsEq => false;
 }

@@ -8,7 +8,9 @@ namespace OPods.UI;
 
 /// <summary>
 /// Main application window: shows device/battery/ANC/game-mode state and
-/// wires user actions to <see cref="PodController"/>.
+/// wires user actions to <see cref="PodController"/>。协议优先重构后，EQ/游戏模式/
+/// 空间音频等能力的可见性由运行时 <see cref="PodController.Capabilities"/> 决定，
+/// 设备信息（编解码器、佩戴状态）由主动通知实时更新。
 /// </summary>
 public partial class MainForm : Form
 {
@@ -16,6 +18,7 @@ public partial class MainForm : Form
     private bool _suppressAncEvents;
     private bool _suppressGameModeEvents;
     private bool _suppressEqEvents;
+    private bool _suppressSpatialEvents;
 
     private readonly List<RadioButton> _ancMainButtons = new();
     private readonly List<RadioButton> _ancLevelButtons = new();
@@ -33,6 +36,9 @@ public partial class MainForm : Form
         _controller.AncModeChanged += OnAncModeChanged;
         _controller.GameModeChanged += OnGameModeChanged;
         _controller.EqPresetChanged += OnEqPresetChanged;
+        _controller.CapabilitiesChanged += OnCapabilitiesChanged;
+        _controller.WearStatusChanged += OnWearStatusChanged;
+        _controller.SpatialAudioChanged += OnSpatialAudioChanged;
         _controller.Log += OnLog;
     }
 
@@ -45,6 +51,8 @@ public partial class MainForm : Form
         UpdateAncUi(_controller.AncMode);
         UpdateGameModeUi(_controller.GameMode);
         UpdateEqUi(_controller.EqPresetId);
+        UpdateCapabilitiesUi();
+        UpdateDeviceInfoUi();
         AppendLog("OPods 已启动。正在从系统配对表自动检测 OPPO 耳机…");
 
         // 启动时自动检测已连接的 OPPO 耳机并连接；未检测到时提示用户手动选择。
@@ -289,6 +297,20 @@ public partial class MainForm : Form
         Preferences.Save();
     }
 
+    private async void SpatialAudioCheckBox_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_suppressSpatialEvents) return;
+        if (_controller.State != ConnectionState.Connected) return;
+        await _controller.SetSpatialAudioAsync(spatialAudioCheckBox.Checked);
+    }
+
+    private async void EqRawIdInput_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEqEvents) return;
+        if (_controller.State != ConnectionState.Connected) return;
+        await _controller.SetEqPresetAsync((byte)eqRawIdInput.Value);
+    }
+
     private void OnStateChanged(object? sender, ConnectionState state)
     {
         if (InvokeRequired) { BeginInvoke(() => OnStateChanged(sender, state)); return; }
@@ -300,6 +322,8 @@ public partial class MainForm : Form
         UpdateConnectionUi();
         UpdateAncUi(_controller.AncMode);
         UpdateEqUi(_controller.EqPresetId);
+        UpdateCapabilitiesUi();
+        UpdateDeviceInfoUi();
     }
 
     private void OnBatteryChanged(object? sender, BatteryParams battery)
@@ -326,56 +350,103 @@ public partial class MainForm : Form
         UpdateEqUi(presetId);
     }
 
+    private void OnCapabilitiesChanged(object? sender, DeviceCapabilities cap)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnCapabilitiesChanged(sender, cap)); return; }
+        UpdateCapabilitiesUi();
+        UpdateDeviceInfoUi();
+        // 能力变化可能影响 EQ 控件的可用性（SupportsEq）
+        UpdateEqUi(_controller.EqPresetId);
+    }
+
+    private void OnWearStatusChanged(object? sender, WearStatus wear)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnWearStatusChanged(sender, wear)); return; }
+        UpdateWearStatusUi(wear);
+    }
+
+    private void OnSpatialAudioChanged(object? sender, bool enabled)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnSpatialAudioChanged(sender, enabled)); return; }
+        UpdateSpatialAudioUi(enabled);
+    }
+
     /// <summary>
-    /// 按 profile 重建 EQ 预设下拉框。不支持 EQ 的 profile 隐藏整个 EQ 分组。
+    /// 按 profile 与运行时能力构建 EQ 控件。
+    /// 优先使用 profile 提供的预设名下拉框；profile 无预设名时回退到原始 preset id 输入框；
+    /// 运行时未确认支持 EQ 时隐藏整个 EQ 分组。
     /// </summary>
     private void BuildEqUi(DeviceProfile profile)
     {
         _currentProfile = profile;
-        bool supported = profile.SupportsEq && profile.EqPresets.Count > 0;
-        eqGroup.Visible = supported;
-        if (!supported)
+        bool hasPresets = profile.EqPresets.Count > 0;
+
+        // 预设名下拉框 vs 原始 id 输入框：二选一显示
+        eqPresetCombo.Visible = hasPresets;
+        eqPresetLabel.Visible = hasPresets;
+        eqRawIdInput.Visible = !hasPresets;
+        eqRawIdLabel.Visible = !hasPresets;
+
+        if (hasPresets)
         {
-            eqPresetCombo.Items.Clear();
+            _suppressEqEvents = true;
+            try
+            {
+                eqPresetCombo.Items.Clear();
+                eqPresetCombo.DisplayMember = nameof(EqPresetDef.DisplayName);
+                foreach (var preset in profile.EqPresets)
+                {
+                    eqPresetCombo.Items.Add(preset);
+                }
+            }
+            finally { _suppressEqEvents = false; }
+        }
+    }
+
+    /// <summary>根据当前 EQ 预设 id 同步下拉框 / 输入框选中项。</summary>
+    private void UpdateEqUi(byte? presetId)
+    {
+        // 整个 EQ 分组可见性由运行时能力决定
+        eqGroup.Visible = _controller.Capabilities.SupportsEq;
+        if (!eqGroup.Visible)
+        {
+            _suppressEqEvents = true;
+            try
+            {
+                eqPresetCombo.SelectedIndex = -1;
+                eqRawIdInput.Value = 0;
+            }
+            finally { _suppressEqEvents = false; }
             return;
         }
 
+        bool connected = _controller.State == ConnectionState.Connected;
         _suppressEqEvents = true;
         try
         {
-            eqPresetCombo.Items.Clear();
-            eqPresetCombo.DisplayMember = nameof(EqPresetDef.DisplayName);
-            foreach (var preset in profile.EqPresets)
+            if (eqPresetCombo.Visible)
             {
-                eqPresetCombo.Items.Add(preset);
-            }
-        }
-        finally { _suppressEqEvents = false; }
-    }
-
-    /// <summary>根据当前 EQ 预设 id 同步下拉框选中项。</summary>
-    private void UpdateEqUi(byte? presetId)
-    {
-        _suppressEqEvents = true;
-        try
-        {
-            eqPresetCombo.SelectedIndex = -1;
-            if (presetId.HasValue && _currentProfile.SupportsEq)
-            {
-                for (int i = 0; i < _currentProfile.EqPresets.Count; i++)
+                eqPresetCombo.SelectedIndex = -1;
+                if (presetId.HasValue)
                 {
-                    if (_currentProfile.EqPresets[i].PresetId == presetId.Value)
+                    for (int i = 0; i < _currentProfile.EqPresets.Count; i++)
                     {
-                        eqPresetCombo.SelectedIndex = i;
-                        break;
+                        if (_currentProfile.EqPresets[i].PresetId == presetId.Value)
+                        {
+                            eqPresetCombo.SelectedIndex = i;
+                            break;
+                        }
                     }
                 }
+                eqPresetCombo.Enabled = connected;
+            }
+            else
+            {
+                eqRawIdInput.Value = presetId.HasValue ? Math.Clamp((int)presetId.Value, 0, 255) : 0;
+                eqRawIdInput.Enabled = connected;
             }
         }
         finally { _suppressEqEvents = false; }
-
-        eqPresetCombo.Enabled = _controller.State == ConnectionState.Connected &&
-                                _currentProfile.SupportsEq;
     }
 
     private async void EqPresetCombo_SelectedIndexChanged(object? sender, EventArgs e)
@@ -481,6 +552,68 @@ public partial class MainForm : Form
             _suppressGameModeEvents = false;
         }
         gameModeCheckBox.Enabled = _controller.State == ConnectionState.Connected;
+    }
+
+    /// <summary>按运行时能力调整 EQ / 游戏模式 / 空间音频分组的可见性。</summary>
+    private void UpdateCapabilitiesUi()
+    {
+        var cap = _controller.Capabilities;
+        bool connected = _controller.State == ConnectionState.Connected;
+
+        // 空间音频：能力发现确认支持才显示
+        spatialAudioGroup.Visible = connected && cap.SupportsSpatialAudio;
+        if (spatialAudioGroup.Visible)
+        {
+            UpdateSpatialAudioUi(cap.SpatialAudioEnabled);
+        }
+
+        // 游戏模式：能力发现确认支持才显示
+        gameModeGroup.Visible = connected && cap.SupportsGameMode;
+        if (!gameModeGroup.Visible)
+        {
+            _suppressGameModeEvents = true;
+            try { gameModeCheckBox.Checked = false; }
+            finally { _suppressGameModeEvents = false; }
+        }
+
+        // EQ 可见性由 UpdateEqUi 处理（依赖 SupportsEq）
+        UpdateEqUi(_controller.EqPresetId);
+    }
+
+    /// <summary>更新设备信息分组：编解码器。</summary>
+    private void UpdateDeviceInfoUi()
+    {
+        codecValueLabel.Text = string.IsNullOrEmpty(_controller.CodecName) ? "--" : _controller.CodecName;
+        UpdateWearStatusUi(_controller.WearStatus);
+    }
+
+    private void UpdateWearStatusUi(WearStatus? wear)
+    {
+        wearLeftLabel.Text = wear == null ? "左耳：--" : $"左耳：{WearStateText(wear.Left)}";
+        wearRightLabel.Text = wear == null ? "右耳：--" : $"右耳：{WearStateText(wear.Right)}";
+    }
+
+    private static string WearStateText(WearState state) => state switch
+    {
+        WearState.Wearing => "已佩戴",
+        WearState.InCase => "在充电盒",
+        WearState.Removed => "已取出未戴",
+        WearState.Disconnected => "未连接",
+        _ => "未知"
+    };
+
+    private void UpdateSpatialAudioUi(bool enabled)
+    {
+        _suppressSpatialEvents = true;
+        try
+        {
+            spatialAudioCheckBox.Checked = enabled;
+        }
+        finally
+        {
+            _suppressSpatialEvents = false;
+        }
+        spatialAudioCheckBox.Enabled = _controller.State == ConnectionState.Connected;
     }
 
     private void AppendLog(string message)

@@ -14,22 +14,16 @@ public static class EqPresetParser
 {
     public static byte? Parse(byte[] data)
     {
-        if (data.Length < 9) return null;
-        if (data[0] != 0xAA) return null;
+        if (!OppoPackets.TryGetPacketLayout(data, out var layout)) return null;
+        if (layout.Cmd != Cmd.EQ_RESPONSE) return null;
+        if (layout.PayLen <= 0) return null;
 
-        int cmd = (data[4] & 0xFF) | ((data[5] & 0xFF) << 8);
-        if (cmd != Cmd.EQ_RESPONSE) return null;
-
-        int payLen = (data[7] & 0xFF) | ((data[8] & 0xFF) << 8);
-        const int payloadStart = 9;
-        if (data.Length < payloadStart + payLen) return null;
+        int p = layout.PayloadOffset;
 
         // 标准 0x810F 响应：[status, presetId]，取 presetId
-        if (payLen >= 2) return (byte)(data[payloadStart + 1] & 0xFF);
+        if (layout.PayLen >= 2) return (byte)(data[p + 1] & 0xFF);
 
         // 短形式：仅 [presetId]
-        if (payLen >= 1) return (byte)(data[payloadStart] & 0xFF);
-
-        return null;
+        return (byte)(data[p] & 0xFF);
     }
 }

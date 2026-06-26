@@ -9,7 +9,8 @@ namespace OPods.Controllers;
 /// <summary>
 /// Standalone RFCOMM controller for OPPO earphones. Owns the connection state
 /// machine, background packet reader, 30s battery polling, and command dispatch.
-/// Mirrors the Kotlin <c>AppRfcommController</c>.
+/// 协议优先重构后，连接后先做能力发现（0x0100/0x0105/0x0114/0x012A/0x010D/0x0200），
+/// 再注册主动通知（0x0201/0x0205），轮询仅作兜底。
 /// </summary>
 public sealed class PodController : IDisposable
 {
@@ -23,6 +24,7 @@ public sealed class PodController : IDisposable
 
     private GameModeImplementation _gameModeImplementation = GameModeImplementation.Standard;
     private bool _running;
+    private bool _capabilitiesDiscovered;
 
     public ConnectionState State { get; private set; } = ConnectionState.Disconnected;
     public BatteryParams Battery { get; private set; } = BatteryParams.Empty;
@@ -35,6 +37,18 @@ public sealed class PodController : IDisposable
     /// </summary>
     public byte? EqPresetId { get; private set; }
 
+    /// <summary>运行时设备能力（协议发现）。未连接或发现未完成时字段为默认值。</summary>
+    public DeviceCapabilities Capabilities { get; private set; } = new();
+
+    /// <summary>当前佩戴状态；未上报为 null。</summary>
+    public WearStatus? WearStatus => Capabilities.WearStatus;
+
+    /// <summary>空间音频当前开关；不支持为 false。</summary>
+    public bool SpatialAudioEnabled => Capabilities.SpatialAudioEnabled;
+
+    /// <summary>当前编解码器友好名；未知为 null。</summary>
+    public string? CodecName => Capabilities.CodecName;
+
     /// <summary>当前连接机型的配置，未连接时为 <see cref="DeviceProfileRegistry.Default"/>。</summary>
     public DeviceProfile Profile { get; private set; } = DeviceProfileRegistry.Default;
 
@@ -43,6 +57,9 @@ public sealed class PodController : IDisposable
     public event EventHandler<NoiseControlMode>? AncModeChanged;
     public event EventHandler<bool>? GameModeChanged;
     public event EventHandler<byte?>? EqPresetChanged;
+    public event EventHandler<DeviceCapabilities>? CapabilitiesChanged;
+    public event EventHandler<WearStatus>? WearStatusChanged;
+    public event EventHandler<bool>? SpatialAudioChanged;
     public event EventHandler<string>? Log;
 
     public async Task ConnectAsync(
@@ -62,6 +79,8 @@ public sealed class PodController : IDisposable
         _gameModeImplementation = implementation;
         Profile = profile;
         DeviceName = deviceName;
+        Capabilities = new DeviceCapabilities();
+        _capabilitiesDiscovered = false;
         SetState(ConnectionState.Connecting);
 
         try
@@ -75,6 +94,7 @@ public sealed class PodController : IDisposable
             _readTask = Task.Run(() => ReadLoopAsync(token), token);
 
             await Task.Delay(300, token).ConfigureAwait(false);
+            // 首次：能力发现 + 状态查询；后续轮询由 PollLoopAsync 触发
             await QueryStatusAsync(token).ConfigureAwait(false);
 
             _pollTask = Task.Run(() => PollLoopAsync(token), token);
@@ -135,6 +155,14 @@ public sealed class PodController : IDisposable
     {
         LogMsg($"Recv: {ToHex(packet)}");
 
+        // 统一入口：0x0204 主动事件先经 NotificationEventParser 分流
+        if (OppoPackets.TryGetPacketLayout(packet, out var layout)
+            && layout.Cmd == Cmd.NOTIF_EVENT)
+        {
+            HandleNotificationEvent(packet);
+            return;
+        }
+
         var result = BatteryParser.Parse(packet);
         if (result != null)
         {
@@ -143,20 +171,6 @@ public sealed class PodController : IDisposable
                 Left = ToPodParams(result.Left),
                 Right = ToPodParams(result.Right),
                 Case = ToPodParams(result.Case)
-            };
-            BatteryChanged?.Invoke(this, Battery);
-            return;
-        }
-
-        var activeResult = BatteryParser.ParseActiveReport(packet);
-        if (activeResult != null)
-        {
-            var current = Battery;
-            Battery = new BatteryParams
-            {
-                Left = MergePodParams(current.Left, activeResult.Left),
-                Right = MergePodParams(current.Right, activeResult.Right),
-                Case = MergePodParams(current.Case, activeResult.Case)
             };
             BatteryChanged?.Invoke(this, Battery);
             return;
@@ -184,6 +198,11 @@ public sealed class PodController : IDisposable
         if (setFeatureResult != null)
         {
             LogMsg($"Switch feature response: status={setFeatureResult.Status}, value={setFeatureResult.Value}");
+            // 0x0403 设置成功后，刷新功能开关状态以同步空间音频/游戏模式等
+            if (setFeatureResult.Status == 0x00)
+            {
+                _ = RefreshFeatureSwitchesAsync();
+            }
             return;
         }
 
@@ -192,8 +211,146 @@ public sealed class PodController : IDisposable
         {
             LogMsg($"EQ preset received: id={eqResult}");
             EqPresetId = eqResult;
+            // 收到 EQ 响应即视为支持 EQ
+            if (!Capabilities.SupportsEq)
+            {
+                Capabilities.SupportsEq = true;
+                CapabilitiesChanged?.Invoke(this, Capabilities);
+            }
             EqPresetChanged?.Invoke(this, EqPresetId);
             return;
+        }
+
+        // 能力发现响应
+        HandleCapabilityResponse(packet);
+    }
+
+    /// <summary>处理 0x0204 主动事件，按 eventCode 派发到子解析器。</summary>
+    private void HandleNotificationEvent(byte[] packet)
+    {
+        var ev = NotificationEventParser.Parse(packet);
+        if (ev == null)
+        {
+            LogMsg("Notification event: parse failed");
+            return;
+        }
+
+        switch (ev.EventCode)
+        {
+            case NotificationEventCode.BATTERY:
+                if (ev.Battery != null)
+                {
+                    var current = Battery;
+                    Battery = new BatteryParams
+                    {
+                        Left = MergePodParams(current.Left, ev.Battery.Left),
+                        Right = MergePodParams(current.Right, ev.Battery.Right),
+                        Case = MergePodParams(current.Case, ev.Battery.Case)
+                    };
+                    BatteryChanged?.Invoke(this, Battery);
+                }
+                break;
+
+            case NotificationEventCode.WEAR_STATUS:
+                if (ev.Wear != null)
+                {
+                    Capabilities.WearStatus = ev.Wear;
+                    LogMsg($"Wear status: L={ev.Wear.Left}, R={ev.Wear.Right}");
+                    WearStatusChanged?.Invoke(this, ev.Wear);
+                }
+                break;
+
+            case NotificationEventCode.ANC:
+                {
+                    var anc = AncModeParser.Parse(packet, Profile);
+                    if (anc != null)
+                    {
+                        LogMsg($"ANC mode received: {anc}");
+                        AncMode = anc.Value;
+                        AncModeChanged?.Invoke(this, AncMode);
+                    }
+                    break;
+                }
+
+            default:
+                LogMsg($"Notification event {ev.EventName} (len={ev.RawPayload?.Length ?? 0})");
+                break;
+        }
+    }
+
+    /// <summary>处理能力发现相关响应（0x8100/0x8114/0x812A/0x810D/0x8200/0x8201/0x8205）。</summary>
+    private void HandleCapabilityResponse(byte[] packet)
+    {
+        if (!OppoPackets.TryGetPacketLayout(packet, out var layout)) return;
+        bool changed = false;
+
+        switch (layout.Cmd)
+        {
+            case Cmd.CAPABILITY_RESPONSE:
+                {
+                    var cap = CapabilityParser.Parse(packet);
+                    if (cap != null) { Capabilities.RemoteCapability = cap; changed = true; }
+                    break;
+                }
+            case Cmd.CODEC_RESPONSE:
+                {
+                    var codec = CodecParser.Parse(packet);
+                    if (codec != null) { Capabilities.CodecTypeCode = codec; changed = true; }
+                    break;
+                }
+            case Cmd.SPATIAL_TYPE_RESPONSE:
+                {
+                    var st = SpatialTypeParser.Parse(packet);
+                    if (st != null) { Capabilities.SpatialType = st; changed = true; }
+                    break;
+                }
+            case Cmd.QUERY_STATUS_RESPONSE:
+                {
+                    var fs = FeatureSwitchParser.Parse(packet);
+                    if (fs != null)
+                    {
+                        bool prevSpatial = Capabilities.SpatialAudioEnabled;
+                        Capabilities.FeatureSwitches = fs;
+                        // 同步游戏模式状态
+                        var gm = fs.ToGameModeStatus().EnabledFor(_gameModeImplementation);
+                        if (gm != null && gm != GameMode)
+                        {
+                            GameMode = gm.Value;
+                            GameModeChanged?.Invoke(this, GameMode);
+                        }
+                        // 同步空间音频开关
+                        if (Capabilities.SpatialAudioEnabled != prevSpatial)
+                        {
+                            SpatialAudioChanged?.Invoke(this, Capabilities.SpatialAudioEnabled);
+                        }
+                        changed = true;
+                    }
+                    break;
+                }
+            case Cmd.NOTIF_CAPABILITY_RESPONSE:
+                {
+                    var nc = NotificationCapabilityParser.Parse(packet);
+                    if (nc != null)
+                    {
+                        Capabilities.NotificationCapability = nc;
+                        changed = true;
+                        // 能力响应到达后立即注册通知
+                        _ = RegisterNotificationsAsync(nc);
+                    }
+                    break;
+                }
+            case Cmd.NOTIF_REGISTER_RESPONSE:
+            case Cmd.NOTIF_REGISTER_MULTI_RESPONSE:
+                {
+                    var rr = NotificationRegisterParser.Parse(packet);
+                    LogMsg($"Notif register response: status={rr?.Status}, count={rr?.RegisteredCount}");
+                    break;
+                }
+        }
+
+        if (changed)
+        {
+            CapabilitiesChanged?.Invoke(this, Capabilities);
         }
     }
 
@@ -221,16 +378,26 @@ public sealed class PodController : IDisposable
         };
     }
 
+    /// <summary>
+    /// 状态查询。首次调用会先执行能力发现（0x0100/0x0114/0x012A/0x010D/0x0200），
+    /// 之后轮询电量/ANC/EQ/功能开关。保留 30s 轮询作为通知未到达时的兜底。
+    /// </summary>
     private async Task QueryStatusAsync(CancellationToken ct)
     {
         try
         {
-            await SendAsync(OppoEnums.QueryStatus, ct).ConfigureAwait(false);
+            if (!_capabilitiesDiscovered)
+            {
+                await DiscoverCapabilitiesAsync(ct).ConfigureAwait(false);
+                _capabilitiesDiscovered = true;
+            }
+
+            await SendAsync(OppoEnums.QueryFeatureSwitchAll, ct).ConfigureAwait(false);
             await Task.Delay(50, ct).ConfigureAwait(false);
             await SendAsync(OppoEnums.QueryBattery, ct).ConfigureAwait(false);
             await Task.Delay(50, ct).ConfigureAwait(false);
             await SendAsync(OppoEnums.QueryAnc, ct).ConfigureAwait(false);
-            if (Profile.SupportsEq)
+            if (Capabilities.SupportsEq)
             {
                 await Task.Delay(50, ct).ConfigureAwait(false);
                 await SendAsync(OppoEnums.QueryEq, ct).ConfigureAwait(false);
@@ -240,6 +407,76 @@ public sealed class PodController : IDisposable
         catch (Exception e)
         {
             LogMsg($"QueryStatus failed: {e.Message}");
+        }
+    }
+
+    /// <summary>能力发现流程：依次发送 0x0100/0x0114/0x012A/0x010D/0x0200。单项失败不阻断整体。</summary>
+    private async Task DiscoverCapabilitiesAsync(CancellationToken ct)
+    {
+        var queries = new (string name, byte[] packet)[]
+        {
+            ("capability", OppoEnums.QueryCapability),
+            ("codec", OppoEnums.QueryCodec),
+            ("spatialType", OppoEnums.QuerySpatialType),
+            ("featureSwitch", OppoEnums.QueryFeatureSwitchAll),
+            ("notifCapability", OppoEnums.QueryNotifCapability),
+        };
+
+        foreach (var (name, packet) in queries)
+        {
+            try
+            {
+                await SendAsync(packet, ct).ConfigureAwait(false);
+                await Task.Delay(80, ct).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                LogMsg($"Discover {name} failed: {e.Message}");
+            }
+        }
+    }
+
+    /// <summary>按 0x8200 能力响应注册主动通知：支持 0x0205 用批量，否则逐个 0x0201。</summary>
+    private async Task RegisterNotificationsAsync(NotificationCapability nc)
+    {
+        try
+        {
+            var codes = nc.SupportedEventCodes
+                .Where(c => c != (Cmd.NOTIF_REGISTER_MULTI & 0xFF))
+                .ToArray();
+            if (codes.Length == 0) return;
+
+            if (nc.SupportsMultiRegister)
+            {
+                await SendAsync(OppoEnums.BuildNotifRegisterMulti(codes), _cts.Token).ConfigureAwait(false);
+                LogMsg($"Registered {codes.Length} notifications via 0x0205: {string.Join(",", codes.Select(c => $"0x{c:X2}"))}");
+            }
+            else
+            {
+                foreach (var c in codes)
+                {
+                    await SendAsync(OppoEnums.BuildNotifRegister(c), _cts.Token).ConfigureAwait(false);
+                    await Task.Delay(30, _cts.Token).ConfigureAwait(false);
+                }
+                LogMsg($"Registered {codes.Length} notifications via 0x0201");
+            }
+        }
+        catch (Exception e)
+        {
+            LogMsg($"Register notifications failed: {e.Message}");
+        }
+    }
+
+    /// <summary>手动刷新功能开关状态（0x010D）。</summary>
+    private async Task RefreshFeatureSwitchesAsync()
+    {
+        try
+        {
+            await SendAsync(OppoEnums.QueryFeatureSwitchAll, _cts.Token).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            LogMsg($"Refresh feature switches failed: {e.Message}");
         }
     }
 
@@ -264,11 +501,11 @@ public sealed class PodController : IDisposable
     }
 
     /// <summary>
-    /// 切换 EQ 预设。仅当当前 profile 支持 EQ 时生效。
+    /// 切换 EQ 预设。仅当运行时能力发现确认支持 EQ 时生效。
     /// </summary>
     public async Task SetEqPresetAsync(byte presetId)
     {
-        if (!Profile.SupportsEq)
+        if (!Capabilities.SupportsEq)
         {
             EqPresetId = null;
             EqPresetChanged?.Invoke(this, EqPresetId);
@@ -282,7 +519,7 @@ public sealed class PodController : IDisposable
 
     public async Task SetGameModeAsync(bool enabled)
     {
-        if (!Profile.SupportsGameMode)
+        if (!Capabilities.SupportsGameMode)
         {
             GameMode = false;
             GameModeChanged?.Invoke(this, GameMode);
@@ -296,6 +533,17 @@ public sealed class PodController : IDisposable
             if (i > 0) await Task.Delay(120, _cts.Token).ConfigureAwait(false);
             await SendAsync(packets[i], _cts.Token).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// 切换空间音频开关（0x0403 载荷 1B 01/00）。仅当能力发现确认支持时生效。
+    /// </summary>
+    public async Task SetSpatialAudioAsync(bool enabled)
+    {
+        if (!Capabilities.SupportsSpatialAudio) return;
+        var packet = enabled ? OppoEnums.SpatialOn : OppoEnums.SpatialOff;
+        await SendAsync(packet, _cts.Token).ConfigureAwait(false);
+        LogMsg($"Spatial audio set: {enabled}");
     }
 
     public void SetGameModeImplementation(GameModeImplementation implementation)
@@ -320,11 +568,14 @@ public sealed class PodController : IDisposable
         DeviceName = string.Empty;
         GameMode = false;
         EqPresetId = null;
+        Capabilities = new DeviceCapabilities();
+        _capabilitiesDiscovered = false;
         Profile = DeviceProfileRegistry.Default;
         BatteryChanged?.Invoke(this, Battery);
         AncModeChanged?.Invoke(this, AncMode);
         GameModeChanged?.Invoke(this, GameMode);
         EqPresetChanged?.Invoke(this, EqPresetId);
+        CapabilitiesChanged?.Invoke(this, Capabilities);
         await Task.CompletedTask;
     }
 
